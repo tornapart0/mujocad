@@ -82,5 +82,10 @@
     "returncode": 0,
     "seconds": 8.35,
     "output": "PASS learned-policy MuJoCo viewer, looping episodes and target marker\n"
+  },
+  {
+    "test": "test_training_tasks",
+    "returncode": 0,
+    "output": "PASS point-reaching goal and success hold; pose learning improvement: 0.0 \u2192 1.0"
   }
 ]
