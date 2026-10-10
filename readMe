@@ -1,1 +1,3 @@
-This is CAD software that is integrated with the MuJoCo simulator to simulate and train robots. I built it after I couldn't install Isaac Sim on my laptop and was annoyed by the lack of visual representation in MLX Lab, so I hope you enjoy and use my software!
+This is CAD software that is integrated with the MuJoCo simulator to simulate and train robots. I built it because I couldn't install Isaac Sim on my laptop and was frustrated by the lack of visual representation in MLX Lab, so I hope you enjoy and use my software!
+The app is Apple Silicon, but you can download it from this GitHub: https://github.com/tornapart0/mujocad/releases/tag/v0.5.1. with the arm64 zip, after unzipping, you will be able to run the software.
+The software itself works similarly to most CADs; I wish to add more functionality to it. (Flight sim coming soon), But first, I need to add a little more functionality. please use this and send feedback!
