@@ -1,0 +1,146 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import time, traceback
+import numpy as np
+from PySide6 import QtWidgets as W, QtCore as C, QtGui as G
+from PySide6.QtTest import QTest
+from app import Window, STYLE, ROOT
+from model import Part, world_matrix, geometry_key
+from editor_actions import copy_parts, paste_parts, HoleDialog, cut_hole
+app = W.QApplication([])
+app.setStyle('Fusion')
+app.setStyleSheet(STYLE)
+w = Window()
+w.show()
+errors = []
+w.error = lambda e: errors.append(str(e))
+
+def wait()
+{
+    deadline = time.monotonic() + 25
+    while w.jobs and time.monotonic() < deadline
+    {
+        QTest.qWait(20)
+    }
+    assert not w.jobs and (not errors), errors
+
+}
+def main()
+{
+    w.activateWindow()
+    w.raise_()
+    QTest.qWait(100)
+    try
+    {
+        wait()
+        w.parts = [Part('base', size=[100, 80, 30], position=[0, 0, 30]), Part('child', position=[120, 0, 0], parent='base', joint='Hinge', motor='Position')]
+        w.selected = 0
+        w.refresh()
+        wait()
+        original = [world_matrix(p, w.parts).copy() for p in w.parts]
+        w.list.selectAll()
+        app.setActiveWindow(w)
+        w.view.setFocus()
+        QTest.keySequence(w.view, G.QKeySequence(G.QKeySequence.StandardKey.Copy))
+        QTest.keySequence(w.view, G.QKeySequence(G.QKeySequence.StandardKey.Paste))
+        wait()
+        assert len(w.parts) == 4 and w.parts[3].parent == w.parts[2].name
+        for p, m in zip(w.parts[2:], original)
+        {
+            m[0, 3] += 60
+            assert np.allclose(world_matrix(p, w.parts), m)
+        }
+        assert w.parts[3].motor == 'Position'
+        w.undo()
+        wait()
+        assert len(w.parts) == 2
+        w.list.setCurrentRow(1)
+        copy_parts(w)
+        paste_parts(w)
+        wait()
+        assert not w.parts[-1].parent
+        assert np.isclose(world_matrix(w.parts[-1], w.parts)[0, 3], 180)
+        w.undo()
+        wait()
+        w.parts = w.parts[:1]
+        w.selected = 0
+        w.refresh()
+        wait()
+        w.camera_view('Top')
+        w.frame_selection()
+        w.set_tool('Rotate')
+        QTest.qWait(100)
+        radius = np.linalg.norm(w.boxes[0][1] - w.boxes[0][0]) * 0.6
+        angle = 0.6
+        center = np.array([0, 0, 30])
+        a = center + np.array([radius * np.cos(angle), radius * np.sin(angle), 0])
+        b = center + np.array([radius * np.cos(angle + np.pi / 2), radius * np.sin(angle + np.pi / 2), 0])
+        start = C.QPoint(*np.rint(w.view.screen(a)).astype(int))
+        end = C.QPoint(*np.rint(w.view.screen(b)).astype(int))
+        QTest.mousePress(w.view, C.Qt.LeftButton, C.Qt.NoModifier, start)
+        assert w.view.drag and w.view.drag.get('rotation'), w.view.drag
+        QTest.mouseMove(w.view, end)
+        QTest.mouseRelease(w.view, C.Qt.LeftButton, C.Qt.NoModifier, end)
+        wait()
+        assert np.isclose(abs(w.parts[0].rotation[2]), 90, atol=1), w.parts[0].rotation
+        assert np.allclose(w.parts[0].position, [0, 0, 30])
+        w.undo()
+        wait()
+        assert np.allclose(w.parts[0].rotation, 0)
+        w.parts[0].rotation = [20, 30, 15]
+        w.refresh()
+        wait()
+        original = world_matrix(w.parts[0], w.parts).copy()
+        volume = w.mesh_cache[geometry_key(w.parts[0])][2]
+
+        def accept_hole()
+        {
+            for widget in app.topLevelWidgets()
+            {
+                if isinstance(widget, HoleDialog)
+                {
+                    widget.diameter.setValue(10)
+                    widget.accept()
+                    return
+                }
+            }
+        }
+        C.QTimer.singleShot(100, accept_hole)
+        cut_hole(w)
+        wait()
+        assert w.parts[0].shape == 'Boolean'
+        remaining = w.mesh_cache[geometry_key(w.parts[0])][2]
+        assert np.isclose(volume - remaining, np.pi * 25 * 30, rtol=1e-06), (volume, remaining)
+        assert np.allclose(world_matrix(w.parts[0], w.parts), original)
+        w.camera_view('Top')
+        w.frame_selection()
+        QTest.qWait(100)
+        w.grab().save(str(ROOT / 'Rotate-Hole-Preview.png'))
+        w.undo()
+        wait()
+        assert w.parts[0].shape == 'Box'
+        dialog = HoleDialog(w)
+        dialog.offsets[0].setValue(1000)
+        tool = dialog.tool()
+        try
+        {
+            w.cad_worker.request('hole', w.parts[0], tool, w.parts + [tool], 'Cut')
+            assert False, 'Expected miss rejection'
+        }
+        except ValueError as error
+        {
+            assert 'misses' in str(error)
+        }
+        dialog.close()
+        print('PASS clipboard hierarchy/world poses/motor settings, independent child paste, 90-degree ring drag, rotation undo, rotated through-hole volume/pose, hole undo and miss rejection', flush=True)
+        w.close()
+        app.exit(0)
+    }
+    except Exception
+    {
+        traceback.print_exc()
+        w.close()
+        app.exit(1)
+    }
+}
+C.QTimer.singleShot(100, main)
+raise SystemExit(app.exec())

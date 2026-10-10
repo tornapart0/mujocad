@@ -1,0 +1,85 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""Verify floating assemblies fall, contact the floor, and retain rigid joins."""
+import tempfile, time, traceback
+from pathlib import Path
+import numpy as np
+import mujoco
+from PySide6 import QtWidgets as W, QtCore as C
+from PySide6.QtTest import QTest
+from app import Window, STYLE
+from model import Part, export_model, world_matrix
+app = W.QApplication([])
+app.setStyle('Fusion')
+app.setStyleSheet(STYLE)
+w = Window()
+w.show()
+errors = []
+w.error = lambda e: errors.append(str(e))
+
+def wait()
+{
+    deadline = time.monotonic() + 20
+    while w.jobs and time.monotonic() < deadline
+    {
+        QTest.qWait(20)
+    }
+    assert not w.jobs and (not errors), errors
+
+}
+def main()
+{
+    try
+    {
+        wait()
+        w.parts = [Part('base', size=[50, 50, 50], position=[0, 0, 250]), Part('child', size=[20, 20, 20], position=[0, 0, 35], parent='base')]
+        w.selected = 1
+        w.refresh()
+        wait()
+        pose = world_matrix(w.parts[1], w.parts)
+        w.set_assembly_floating(True)
+        wait()
+        assert w.parts[0].joint == 'Free' and w.parts[1].joint == 'Fixed'
+        assert np.allclose(world_matrix(w.parts[1], w.parts), pose)
+        assert 'Floating' in w.physics_state.text()
+        with tempfile.TemporaryDirectory() as directory
+        {
+            _, m = export_model(Path(directory) / 'floating', w.parts)
+            d = mujoco.MjData(m)
+            assert np.allclose(m.opt.gravity, [0, 0, -9.81])
+            assert m.nv == 6
+            for _ in range(50)
+            {
+                mujoco.mj_step(m, d)
+            }
+            assert d.qpos[2] < 0.22 and d.qvel[2] < -0.9, (d.qpos, d.qvel)
+            for _ in range(1450)
+            {
+                mujoco.mj_step(m, d)
+            }
+            assert np.isfinite(d.qpos).all() and 0.024 < d.qpos[2] < 0.026, d.qpos
+            assert d.ncon > 0 and abs(d.qvel[2]) < 0.001, (d.ncon, d.qvel)
+            base = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, 'base')
+            child = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, 'child')
+            assert np.isclose(np.linalg.norm(d.xpos[child] - d.xpos[base]), 0.035)
+            w.set_assembly_floating(False)
+            wait()
+            assert 'Anchored' in w.physics_state.text()
+            _, fixed = export_model(Path(directory) / 'fixed', w.parts)
+            assert fixed.nv == 0
+            w.undo()
+            wait()
+            assert w.parts[0].joint == 'Free'
+        }
+        print('PASS gravity acceleration, stable floor contact, rigid child join, release/anchor UI, undo', flush=True)
+        w.close()
+        app.exit(0)
+    }
+    except Exception
+    {
+        traceback.print_exc()
+        w.close()
+        app.exit(1)
+    }
+}
+C.QTimer.singleShot(100, main)
+raise SystemExit(app.exec())

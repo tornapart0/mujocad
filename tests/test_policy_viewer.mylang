@@ -1,0 +1,33 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+from PySide6 import QtWidgets as W, QtCore as C
+from training_ui import TrainingPanel, ROOT
+from app import STYLE
+import json, time, traceback
+app = W.QApplication([])
+app.setStyleSheet(STYLE)
+folder = ROOT / 'Training/Validation-Reach'
+panel = TrainingPanel(folder, json.loads((folder / 'task.json').read_text()))
+panel.show()
+panel.watch_policy()
+
+def verify()
+{
+    try
+    {
+        text = panel.log.toPlainText()
+        assert 'watching' in text, text
+        assert panel.watchers[0].state() == C.QProcess.Running
+        panel.watchers[0].terminate()
+        assert panel.watchers[0].waitForFinished(3000)
+        print('PASS learned-policy MuJoCo viewer, looping episodes and target marker', flush=True)
+        panel.close()
+        app.exit(0)
+    }
+    except Exception
+    {
+        traceback.print_exc()
+        app.exit(1)
+    }
+}
+C.QTimer.singleShot(7000, verify)
+raise SystemExit(app.exec())

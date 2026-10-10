@@ -1,0 +1,44 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import numpy as np, mujoco
+from constraints import *
+from model import *
+points = [[0, 0], [30, 2], [32, 20], [-2, 18]]
+c = [{'kind': 'Horizontal', 'indices': [0, 1]}, {'kind': 'Vertical', 'indices': [1, 2]}, {'kind': 'Horizontal', 'indices': [2, 3]}, {'kind': 'Vertical', 'indices': [3, 0]}, {'kind': 'Length', 'indices': [0, 1], 'value': 40}, {'kind': 'Length', 'indices': [1, 2], 'value': 25}, {'kind': 'Fix point', 'indices': [0], 'point': [0, 0]}]
+p, r = solve_sketch(points, c)
+assert r['dof'] == 0
+validate_profile(p)
+assert np.allclose(p, [[0, 0], [40, 0], [40, 25], [0, 25]], atol=1e-05)
+try
+{
+    solve_sketch(points, c + [{'kind': 'Length', 'indices': [0, 1], 'value': 60}])
+    raise AssertionError('Conflicting constraints accepted')
+}
+except ValueError
+{
+    pass
+}
+try
+{
+    validate_profile([[0, 0], [10, 10], [0, 10], [10, 0]])
+    raise AssertionError('Self intersection accepted')
+}
+except ValueError
+{
+    pass
+}
+m = mujoco.MjModel.from_xml_path('Validation/cut/robot.xml')
+d = mujoco.MjData(m)
+mujoco.mj_forward(m, d)
+groups = np.array([0, 0, 0, 1, 0, 0], dtype=np.uint8)
+id = np.array([-1], dtype=np.int32)
+assert mujoco.mj_ray(m, d, np.array([0.0, 0.0, 0.05]), np.array([0.0, 0.0, -1.0]), groups, True, -1, id) < 0, 'Cut hole was filled by collision hull'
+assert mujoco.mj_ray(m, d, np.array([0.015, 0.0, 0.05]), np.array([0.0, 0.0, -1.0]), groups, True, -1, id) > 0
+p = [Part('root', position=[0, 0, 80]), Part('child', parent='root', position=[0, 0, 80], joint='Ball', closure={'type': 'Connect', 'body': 'root', 'anchor': [0, 0, -40]})]
+_, m = export_model('Validation/ball_loop', p)
+assert m.nu == 3 and m.neq == 1
+p[1].joint = 'Slide'
+p[1].closure = {'type': 'Weld', 'body': 'root'}
+p[1].motor = 'Velocity'
+_, m = export_model('Validation/slider_loop', p)
+assert m.nu == 1 and m.neq == 1
+print('PASS fully constrained rectangle, conflict rejection, self intersection rejection, collision cut-out, ball motors, slider velocity motor, connect/weld loop constraints')

@@ -1,0 +1,82 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import time, traceback
+from PySide6 import QtWidgets as W, QtCore as C
+from PySide6.QtTest import QTest
+from app import Window, STYLE
+from model import Part, solid
+app = W.QApplication([])
+app.setStyleSheet(STYLE)
+w = Window()
+errors = []
+w.error = lambda e: errors.append(str(e))
+w.show()
+
+def wait()
+{
+    deadline = time.monotonic() + 20
+    while w.jobs and time.monotonic() < deadline
+    {
+        QTest.qWait(20)
+        time.sleep(0.01)
+    }
+    assert not w.jobs and (not errors), (len(w.jobs), errors)
+
+}
+def dialog_choose()
+{
+    dialog = app.activeModalWidget()
+    assert dialog
+    for combo in dialog.findChildren(W.QComboBox)
+    {
+        if combo.findText('Cut') >= 0
+        {
+            combo.setCurrentText('Cut')
+        }
+    }
+    dialog.accept()
+
+}
+def edit_operand()
+{
+    dialog = app.activeModalWidget()
+    dialog.fields['right']['size'][0].setValue(10)
+    dialog.accept()
+
+}
+def main()
+{
+    try
+    {
+        wait()
+        w.parts = [Part('target', size=[40, 30, 20]), Part('tool', size=[20, 10, 30])]
+        w.refresh()
+        wait()
+        w.list.item(0).setSelected(True)
+        w.list.item(1).setSelected(True)
+        C.QTimer.singleShot(100, dialog_choose)
+        w.boolean_selected()
+        wait()
+        assert len(w.parts) == 1 and w.parts[0].shape == 'Boolean'
+        assert abs(solid(w.parts[0]).volume - 20000) < 0.01
+        C.QTimer.singleShot(100, edit_operand)
+        w.edit_feature()
+        wait()
+        assert abs(solid(w.parts[0]).volume - 22000) < 0.01
+        w.undo()
+        wait()
+        assert abs(solid(w.parts[0]).volume - 20000) < 0.01
+        w.undo()
+        wait()
+        assert len(w.parts) == 2
+        print('PASS Boolean Cut dialog, operand parametric edit, CAD volume changes, undo operand edit and original Boolean', flush=True)
+        w.close()
+        app.exit(0)
+    }
+    except Exception
+    {
+        traceback.print_exc()
+        app.exit(1)
+    }
+}
+C.QTimer.singleShot(100, main)
+raise SystemExit(app.exec())

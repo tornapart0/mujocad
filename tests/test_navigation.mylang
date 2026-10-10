@@ -1,0 +1,75 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import time, traceback
+import numpy as np
+from PySide6 import QtWidgets as W, QtCore as C, QtGui as G
+from PySide6.QtTest import QTest
+from app import Window, STYLE, ROOT
+app = W.QApplication([])
+app.setStyle('Fusion')
+app.setStyleSheet(STYLE)
+w = Window()
+w.error = lambda e: print('ERROR', e, flush=True)
+w.show()
+
+def gesture(kind, value=0, pos=None)
+{
+    pos = pos or C.QPointF(w.view.width() * 0.7, w.view.height() * 0.4)
+    event = G.QNativeGestureEvent(kind, G.QPointingDevice.primaryPointingDevice(), 2, pos, pos, pos, value, C.QPointF(), 1)
+    return app.sendEvent(w.view, event)
+
+}
+def verify()
+{
+    try
+    {
+        if getattr(w, 'preview_pending', False)
+        {
+            before = w.view.opts['distance']
+            gesture(C.Qt.ZoomNativeGesture, 0.2)
+            assert w.view.opts['distance'] < before
+            gesture(C.Qt.EndNativeGesture)
+            assert w.view.isEnabled()
+        }
+        deadline = time.monotonic() + 20
+        while w.jobs and time.monotonic() < deadline
+        {
+            QTest.qWait(20)
+            time.sleep(0.01)
+        }
+        assert not w.jobs and len(w.items) == 2
+        v = w.view
+        old = v.opts['distance']
+        pos = C.QPointF(v.width() * 0.7, v.height() * 0.4)
+        center = np.array(v.opts['center'].toTuple())
+        n = v.ray(C.QPointF(v.width() / 2, v.height() / 2))[1]
+        n /= np.linalg.norm(n)
+        anchor = v.plane_point(pos, n, center)
+        assert gesture(C.Qt.ZoomNativeGesture, 0.25, pos)
+        assert np.isclose(v.opts['distance'], old / 1.25)
+        assert np.allclose(v.plane_point(pos, n, center), anchor, atol=0.0001)
+        gesture(C.Qt.ZoomNativeGesture, -0.2, pos)
+        assert np.isclose(v.opts['distance'], old)
+        gesture(C.Qt.EndNativeGesture)
+        distance = v.opts['distance']
+        center = np.array(v.opts['center'].toTuple())
+        event = G.QWheelEvent(pos, pos, C.QPoint(15, 20), C.QPoint(0, 120), C.Qt.NoButton, C.Qt.NoModifier, C.Qt.ScrollUpdate, False)
+        app.sendEvent(v, event)
+        assert v.opts['distance'] == distance
+        assert not np.allclose(v.opts['center'].toTuple(), center)
+        wheel = G.QWheelEvent(pos, pos, C.QPoint(), C.QPoint(0, 120), C.Qt.NoButton, C.Qt.NoModifier, C.Qt.NoScrollPhase, False)
+        app.sendEvent(v, wheel)
+        assert v.opts['distance'] < distance
+        w.frame_selection()
+        w.grab().save(str(ROOT / 'Editor-Preview.png'))
+        print('PASS native pinch in/out, cursor anchored zoom, trackpad pan, mouse-wheel zoom, camera controls', flush=True)
+        w.close()
+        app.exit(0)
+    }
+    except Exception
+    {
+        traceback.print_exc()
+        app.exit(1)
+    }
+}
+C.QTimer.singleShot(100, verify)
+raise SystemExit(app.exec())

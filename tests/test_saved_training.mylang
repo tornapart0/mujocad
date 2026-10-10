@@ -1,0 +1,85 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import time, traceback
+from PySide6 import QtWidgets as W, QtCore as C
+from PySide6.QtTest import QTest
+from app import Window, STYLE, ROOT
+from training_ui import TrainingWizard, TrainingLibrary
+app = W.QApplication([])
+app.setStyleSheet(STYLE)
+w = Window()
+errors = []
+w.error = lambda e: errors.append(str(e))
+w.show()
+
+def wait()
+{
+    deadline = time.monotonic() + 20
+    while w.jobs and time.monotonic() < deadline
+    {
+        QTest.qWait(10)
+        time.sleep(0.01)
+    }
+    assert not w.jobs and (not errors), errors
+
+}
+def select_example()
+{
+    d = app.activeModalWidget()
+    assert isinstance(d, W.QMessageBox)
+    next((b for b in d.buttons() if b.text() == 'Load motorized arm example')).click()
+
+}
+def cancel_wizard()
+{
+    d = app.activeModalWidget()
+    assert isinstance(d, TrainingWizard)
+    d.reject()
+
+}
+def select_saved()
+{
+    d = app.activeModalWidget()
+    assert isinstance(d, TrainingLibrary)
+    for i in range(d.list.topLevelItemCount())
+    {
+        item = d.list.topLevelItem(i)
+        if 'Validation-Pose' in item.data(0, C.Qt.UserRole)
+        {
+            d.list.setCurrentItem(item)
+            d.grab().save(str(ROOT / 'Saved-Training-Preview.png'))
+            d.accept()
+            return
+        }
+    }
+    raise AssertionError('Saved training not listed')
+
+}
+def main()
+{
+    try
+    {
+        wait()
+        C.QTimer.singleShot(100, select_example)
+        C.QTimer.singleShot(300, cancel_wizard)
+        w.create_training()
+        QTest.qWait(400)
+        wait()
+        assert any((p.motor != 'None' and p.joint == 'Hinge' for p in w.parts))
+        C.QTimer.singleShot(100, select_saved)
+        w.open_training()
+        assert len(w.training_panels) == 1
+        p = w.training_panels[0]
+        assert p.watch.isEnabled() and p.resume.isEnabled()
+        assert '100%' in p.metrics.text()
+        w.close()
+        print('PASS first-run motorized-example onboarding and named saved-run library with policy replay/resume', flush=True)
+        app.exit(0)
+    }
+    except Exception
+    {
+        traceback.print_exc()
+        app.exit(1)
+    }
+}
+C.QTimer.singleShot(100, main)
+raise SystemExit(app.exec())

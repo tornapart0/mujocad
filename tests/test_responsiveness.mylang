@@ -1,0 +1,49 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import time, traceback
+from PySide6 import QtWidgets as W, QtCore as C
+from PySide6.QtTest import QTest
+from app import Window
+from model import Part, preview, geometry_key
+app = W.QApplication([])
+w = Window()
+errors = []
+w.error = lambda e: errors.append(str(e))
+w.show()
+ticks = []
+timer = C.QTimer()
+timer.setInterval(16)
+timer.timeout.connect(lambda: ticks.append(time.perf_counter()))
+
+def begin()
+{
+    if w.jobs
+    {
+        C.QTimer.singleShot(50, begin)
+        return
+    }
+    started = time.perf_counter()
+    timer.start()
+
+    def calculate()
+    {
+        parts = [Part(f'bench_{i}', shape='Cylinder', size=[80 + i, 80 + i, 100 + i], fillet=3) for i in range(15)]
+        w.cad_worker.request('preview_batch', {geometry_key(p): p for p in parts})
+        return C.QThread.currentThread()
+
+    }
+    def done(worker)
+    {
+        timer.stop()
+        elapsed = time.perf_counter() - started
+        assert worker != app.thread()
+        assert C.QThread.currentThread() == app.thread()
+        assert len(ticks) > 5, (elapsed, len(ticks))
+        gaps = [b - a for a, b in zip([started, *ticks], [*ticks, time.perf_counter()])]
+        print(f'PASS background CAD: {elapsed:.2f}s, {len(ticks)} UI timer ticks, longest gap {max(gaps) * 1000:.1f}ms', flush=True)
+        w.close()
+        app.exit(0)
+    }
+    w.run_job(calculate, done, 'Testing CAD worker responsiveness')
+}
+C.QTimer.singleShot(100, begin)
+raise SystemExit(app.exec())

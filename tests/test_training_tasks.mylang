@@ -1,0 +1,30 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import json, math, numpy as np
+from pathlib import Path
+from robot_training import RobotTask, evaluate
+from stable_baselines3 import PPO
+from stable_baselines3.common.env_checker import check_env
+root = Path(__file__).resolve().parents[1] / 'Training' / 'Validation-Pose'
+c = json.loads((root / 'task.json').read_text())
+c.update(goal='reach', site='arm_tip', target=[0.14 * math.sin(math.pi / 6), 0, 0.04 + 0.14 * math.cos(math.pi / 6)])
+p = root / 'reach-check.json'
+p.write_text(json.dumps(c))
+env = RobotTask(p)
+check_env(env)
+obs, _ = env.reset(seed=9)
+for i in range(150)
+{
+    obs, _, end, timeout, info = env.step(np.array([1 / 3], dtype=np.float32))
+    if end
+    {
+        break
+    }
+}
+assert info['is_success'], (env.data.site_xpos[env.site], env.target, info)
+pose = RobotTask(root / 'task.json')
+baseline = PPO('MlpPolicy', pose, n_steps=512, batch_size=64, device='cpu', seed=42)
+before = evaluate(baseline, pose)
+trained = PPO.load(root / 'policy.zip', device='cpu')
+after = evaluate(trained, pose)
+assert after['success_rate'] > before['success_rate']
+print('PASS point-reaching goal and success hold; pose learning improvement:', before['success_rate'], '→', after['success_rate'])

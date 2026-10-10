@@ -1,0 +1,59 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import sys, time, json
+from pathlib import Path
+import numpy as np, mujoco
+from model import *
+from constraints import solve_sketch
+out = Path('Validation')
+a = Part('target', size=[40, 30, 20], collision='Primitive')
+b = Part('tool', size=[20, 10, 30], collision='Primitive')
+for op, expected in [('Union', 26000), ('Cut', 20000), ('Intersect', 4000)]
+{
+    c = boolean_part(a, b, [a, b], op)
+    assert abs(solid(c).volume - expected) < 0.01, (op, solid(c).volume)
+    print(op, 'volume', solid(c).volume, flush=True)
+}
+p = demo()
+p[1].control = 30
+path, m = export_model(out / 'arm', p)
+d = mujoco.MjData(m)
+d.ctrl[:] = [x['initial'] for x in json.loads(path.with_name('controls.json').read_text())]
+for _ in range(2000)
+{
+    mujoco.mj_step(m, d)
+}
+assert np.isfinite(d.qpos).all()
+assert abs(d.qpos[0] - np.pi / 6) < 0.04, d.qpos
+print('Position motor settles:', d.qpos, 'mass', m.body_mass, flush=True)
+p = [Part('base', size=[100, 80, 30], position=[0, 0, 55], joint='Free'), Part('wheel', shape='Cylinder', size=[50, 50, 15], position=[0, 50, -15], rotation=[90, 0, 0], parent='base', joint='Hinge', axis='Z', unlimited=True, control=0.1, torque=1)]
+path, m = export_model(out / 'floating', p)
+d = mujoco.MjData(m)
+d.ctrl[:] = 0.1
+for _ in range(1000)
+{
+    mujoco.mj_step(m, d)
+}
+assert np.isfinite(d.qpos).all()
+assert m.nq == 8
+print('Floating robot:', m.nq, m.nu, m.nsensor, flush=True)
+path, m = export_model(out / 'mass', [a])
+assert abs(m.body_mass[1] - 0.024) < 1e-08
+expected = np.sort(0.024 / 12 * np.array([0.03 ** 2 + 0.02 ** 2, 0.04 ** 2 + 0.02 ** 2, 0.04 ** 2 + 0.03 ** 2]))
+assert np.allclose(np.sort(m.body_inertia[1]), expected, rtol=1e-05), (m.body_inertia[1], expected)
+c = boolean_part(a, b, [a, b], 'Cut')
+c.collision = 'Decomposition'
+t = time.perf_counter()
+path, m = export_model(out / 'cut', [c])
+print('Cut collision pieces:', m.ngeom - 2, 'export seconds', time.perf_counter() - t, flush=True)
+c = Part('benchmark', shape='Cylinder', size=[80, 80, 100], fillet=3)
+t = time.perf_counter()
+preview(c)
+cold = time.perf_counter() - t
+t = time.perf_counter()
+for _ in range(1000)
+{
+    preview(c)
+}
+hot = (time.perf_counter() - t) / 1000
+print('Preview cold', cold, 'cached', hot, 'speedup', cold / hot, cache_stats(), flush=True)
+print('PASS')

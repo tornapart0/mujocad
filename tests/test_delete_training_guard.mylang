@@ -1,0 +1,100 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import time, traceback
+from PySide6 import QtWidgets as W, QtCore as C
+from PySide6.QtTest import QTest
+from app import Window, STYLE, ROOT
+from model import Part
+from training_ui import TrainingWizard, TrainingPanel
+app = W.QApplication([])
+app.setStyle('Fusion')
+app.setStyleSheet(STYLE)
+w = Window()
+w.show()
+errors = []
+w.error = lambda e: errors.append(str(e))
+
+def wait()
+{
+    deadline = time.monotonic() + 20
+    while w.jobs and time.monotonic() < deadline
+    {
+        QTest.qWait(20)
+    }
+    assert not w.jobs
+
+}
+def main()
+{
+    w.activateWindow()
+    w.raise_()
+    QTest.qWait(100)
+    try
+    {
+        wait()
+        parts = [Part('Sketch_A', position=[-30, 0, 15]), Part('Sketch_B', position=[45, 0, 0], size=[40, 30, 30], parent='Sketch_A', joint='Hinge', axis='Z')]
+        wizard = TrainingWizard(parts, w)
+        wizard.goal.setCurrentIndex(1)
+        assert not wizard.target_valid()
+        assert 'rotation axis' in wizard.target_warning.text()
+        wizard.goal.setCurrentIndex(0)
+        assert wizard.target_valid()
+        parts[1].axis = 'Y'
+        fixed = TrainingWizard(parts, w)
+        fixed.goal.setCurrentIndex(1)
+        assert fixed.target_valid()
+        fixed.close()
+        wizard.close()
+        w.parts = [Part('parent', position=[0, 0, 25]), Part('child', parent='parent', position=[50, 0, 0])]
+        w.selected = 0
+        w.refresh()
+        wait()
+        assert w.delete_button.isEnabled()
+        w.remove()
+        assert len(w.parts) == 2 and errors
+        errors.clear()
+        w.list.selectAll()
+        w.delete_button.click()
+        wait()
+        assert not w.parts and (not w.delete_button.isEnabled())
+        w.undo()
+        wait()
+        assert len(w.parts) == 2
+        w.list.setCurrentRow(1)
+        app.setActiveWindow(w)
+        w.list.setFocus()
+        QTest.keyClick(w.list, C.Qt.Key_Backspace)
+        wait()
+        assert len(w.parts) == 1 and w.parts[0].name == 'parent', (len(w.parts),w.selected_rows(),w.isActiveWindow(),str(app.focusWidget()),errors)
+        w.undo()
+        wait()
+        w.list.setCurrentRow(1)
+        app.setActiveWindow(w)
+        w.view.setFocus()
+        QTest.keyClick(w.view, C.Qt.Key_Delete)
+        wait()
+        assert len(w.parts) == 1
+        w.undo()
+        wait()
+        w.list.setCurrentRow(1)
+        w.name.setFocus()
+        w.name.setCursorPosition(len(w.name.text()))
+        QTest.keyClick(w.name, C.Qt.Key_Backspace)
+        assert len(w.parts) == 2
+        panel = TrainingPanel(ROOT / 'Training', {'name': 'Test', 'steps': 51200}, w)
+        panel.handle_event({'event': 'finished', 'stopped': False, 'success_rate': 0, 'evaluation_episodes': 10, 'mean_reward': -37.53, 'steps': 51200})
+        assert 'Goal not achieved' in panel.state.text() and 'Training budget' in panel.progress.format()
+        panel.close()
+        w.grab().save(str(ROOT / 'Delete-Preview.png'))
+        print('PASS stationary-tip reach guard, pose alternative, moving-axis reach, delete button/shortcuts, child attachment protection, multi-delete, undo, text-edit safety, training-budget label', flush=True)
+        w.close()
+        app.exit(0)
+    }
+    except Exception
+    {
+        traceback.print_exc()
+        w.close()
+        app.exit(1)
+    }
+}
+C.QTimer.singleShot(100, main)
+raise SystemExit(app.exec())
