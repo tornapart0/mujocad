@@ -1,0 +1,1 @@
+This is CAD software that is integrated with the MuJoCo simulator to simulate and train robots. I built it after I couldn't install Isaac Sim on my laptop and was annoyed by the lack of visual representation in MLX Lab, so I hope you enjoy and use my software!
