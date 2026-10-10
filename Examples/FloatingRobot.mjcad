@@ -1,0 +1,131 @@
+{
+  "format": "MuJoCoCAD",
+  "version": 2,
+  "units": "mm",
+  "parts": [
+    {
+      "name": "base",
+      "shape": "Box",
+      "size": [
+        100,
+        80,
+        30
+      ],
+      "position": [
+        0,
+        0,
+        55
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "",
+      "joint": "Free",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1000.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "Torque",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.25,
+        0.65,
+        0.85,
+        1.0
+      ]
+    },
+    {
+      "name": "wheel",
+      "shape": "Cylinder",
+      "size": [
+        50,
+        50,
+        15
+      ],
+      "position": [
+        0,
+        50,
+        -15
+      ],
+      "rotation": [
+        90,
+        0,
+        0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "base",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": true,
+      "density": 1000.0,
+      "mass": 0.0,
+      "torque": 1,
+      "motor": "Torque",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.1,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.25,
+        0.65,
+        0.85,
+        1.0
+      ]
+    }
+  ]
+}
