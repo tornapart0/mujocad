@@ -1,0 +1,216 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""CAD clipboard and circular through-hole operations."""
+import json
+from copy import deepcopy
+from dataclasses import asdict
+import numpy as np
+from PySide6 import QtWidgets as W, QtCore as C
+from model import Part, world_matrix, set_world_matrix, validate
+MIME = 'application/x-mujococad-parts'
+
+def copy_parts(editor)
+{
+    rows = editor.selected_rows()
+    if not rows
+    {
+        return
+    }
+    payload = {'version': 1, 'parts': [asdict(editor.parts[i]) for i in rows], 'world': [world_matrix(editor.parts[i], editor.parts).tolist() for i in rows]}
+    mime = C.QMimeData()
+    mime.setData(MIME, json.dumps(payload).encode())
+    mime.setText(f'MuJoCoCAD: {len(rows)} part(s)')
+    W.QApplication.clipboard().setMimeData(mime)
+    editor.statusBar().showMessage(f'Copied {len(rows)} part(s) • Paste creates independent editable copies')
+
+}
+def paste_parts(editor)
+{
+    mime = W.QApplication.clipboard().mimeData()
+    if not mime or not mime.hasFormat(MIME)
+    {
+        editor.statusBar().showMessage('Copy CAD parts first.')
+        return
+    }
+    try
+    {
+        payload = json.loads(bytes(mime.data(MIME)))
+        assert payload['version'] == 1
+        copied = [Part(**entry) for entry in payload['parts']]
+        worlds = payload['world']
+        assert len(copied) == len(worlds) and copied
+        names = {}
+        used = {p.name for p in editor.parts}
+        for p in copied
+        {
+            old = p.name
+            n = 1
+            while f'{old}_copy_{n}' in used
+            {
+                n += 1
+            }
+            names[old] = f'{old}_copy_{n}'
+            used.add(names[old])
+        }
+        for p, world in zip(copied, worlds)
+        {
+            old_parent = p.parent
+            p.name = names[p.name]
+            p.parent = names.get(old_parent, '')
+            if p.closure
+            {
+                if p.closure.get('body') in names
+                {
+                    p.closure['body'] = names[p.closure['body']]
+                }
+                else
+                {
+                    p.closure = {}
+                }
+                if p.closure.get('type') == 'Connect' and 'anchor' in p.closure
+                {
+                    p.closure['anchor'] = (np.array(p.closure['anchor']) + np.array([60, 0, 0])).tolist()
+                }
+            }
+            if not p.parent
+            {
+                m = np.array(world, dtype=float)
+                m[0, 3] += 60
+                set_world_matrix(p, m, [])
+            }
+        }
+        validate(editor.parts + copied)
+        editor.remember()
+        start = len(editor.parts)
+        editor.parts.extend(copied)
+        editor.selected = start
+        editor.refresh()
+        editor.list.clearSelection()
+        for i in range(start, len(editor.parts))
+        {
+            editor.list.item(i).setSelected(True)
+        }
+        editor.statusBar().showMessage(f'Pasted {len(copied)} part(s) • moved 60 mm along world X')
+    }
+    except Exception as error
+    {
+        editor.error('Could not paste CAD parts: ' + str(error))
+
+    }
+}
+class HoleDialog(W.QDialog)
+
+{
+    def __init__(self, editor)
+    {
+        super().__init__(editor)
+        self.setWindowTitle('Circular through-hole')
+        self.editor = editor
+        self.part = editor.parts[editor.selected]
+        self.resize(390, 270)
+        form = W.QFormLayout(self)
+        note = W.QLabel('Cut a circular hole through the selected solid. Position and axis use the part’s local coordinates.')
+        note.setWordWrap(True)
+        form.addRow(note)
+        self.axis = W.QComboBox()
+        self.axis.addItems(['X', 'Y', 'Z'])
+        self.axis.setCurrentText('Z')
+        form.addRow('Hole axis', self.axis)
+        self.diameter = W.QDoubleSpinBox()
+        self.diameter.setRange(0.1, 2000)
+        self.diameter.setValue(10)
+        self.diameter.setSuffix(' mm')
+        form.addRow('Diameter', self.diameter)
+        from model import geometry_key
+        vertices = editor.mesh_cache[geometry_key(self.part)][0]
+        self.lo = vertices.min(0)
+        self.hi = vertices.max(0)
+        self.offsets = []
+        self.labels = []
+        for _ in range(2)
+        {
+            label = W.QLabel()
+            spin = W.QDoubleSpinBox()
+            spin.setRange(-100000, 100000)
+            spin.setSuffix(' mm')
+            form.addRow(label, spin)
+            self.labels.append(label)
+            self.offsets.append(spin)
+        }
+        self.axis.currentIndexChanged.connect(self.update_axis)
+        self.update_axis()
+        buttons = W.QDialogButtonBox(W.QDialogButtonBox.Ok | W.QDialogButtonBox.Cancel)
+        buttons.button(W.QDialogButtonBox.Ok).setText('Cut hole')
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+    }
+    def update_axis(self, *args)
+    {
+        a = self.axis.currentIndex()
+        self.transverse = [i for i in range(3) if i != a]
+        for label, spin, i in zip(self.labels, self.offsets, self.transverse)
+        {
+            label.setText('Center ' + 'XYZ'[i])
+            spin.setValue(float((self.lo[i] + self.hi[i]) / 2))
+
+        }
+    }
+    def tool(self)
+    {
+        a = self.axis.currentIndex()
+        center = (self.lo + self.hi) / 2
+        for spin, i in zip(self.offsets, self.transverse)
+        {
+            center[i] = spin.value()
+        }
+        rotation = [0, 90, 0] if a == 0 else [-90, 0, 0] if a == 1 else [0, 0, 0]
+        diameter = self.diameter.value()
+        depth = float(self.hi[a] - self.lo[a] + 2)
+        tool = Part('_hole_tool', shape='Cylinder', size=[diameter, diameter, depth], position=center.tolist(), rotation=rotation)
+        matrix = world_matrix(self.part, self.editor.parts) @ world_matrix(tool, [])
+        set_world_matrix(tool, matrix, [])
+        return tool
+
+    }
+}
+def cut_hole(editor)
+{
+    rows = editor.selected_rows()
+    if len(rows) != 1
+    {
+        editor.error('Select one solid to cut a hole.')
+        return
+    }
+    if getattr(editor, 'preview_pending', False)
+    {
+        editor.statusBar().showMessage('Wait for the CAD preview to finish.')
+        return
+    }
+    editor.selected = rows[0]
+    dialog = HoleDialog(editor)
+    if dialog.exec() != W.QDialog.Accepted
+    {
+        return
+    }
+    snapshot = deepcopy(editor.parts)
+    target = deepcopy(editor.parts[editor.selected])
+    tool = dialog.tool()
+
+    def done(payload)
+    {
+        result, mesh = payload
+        if editor.parts != snapshot
+        {
+            editor.error('Design changed during the cut. Try again.')
+            return
+        }
+        from model import geometry_key
+        editor.mesh_cache[geometry_key(result)] = mesh
+        editor.remember()
+        editor.parts = [result if p.name == target.name else p for p in editor.parts]
+        editor.refresh()
+        editor.statusBar().showMessage('Through-hole cut • Edit Boolean operands to adjust it')
+    }
+    editor.run_job(lambda: editor.cad_worker.request('hole', target, tool, snapshot + [tool], 'Cut'), done, 'Cutting through-hole…')
+}

@@ -1,0 +1,4 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""Bright, inexpensive lighting keeps CAD faces legible on a dark canvas."""
+from pyqtgraph.opengl.shaders import ShaderProgram, VertexShader, FragmentShader
+CAD_SURFACE = ShaderProgram('cadSurface', [VertexShader('\nuniform mat4 u_mvp;\nuniform mat3 u_normal;\nattribute vec4 a_position;\nattribute vec3 a_normal;\nattribute vec4 a_color;\nvarying vec4 v_color;\nvarying vec3 v_normal;\nvoid main() {\n    v_normal=normalize(u_normal*a_normal);\n    v_color=a_color;\n    gl_Position=u_mvp*a_position;\n}\n'), FragmentShader('\n#ifdef GL_ES\nprecision mediump float;\n#endif\nvarying vec4 v_color;\nvarying vec3 v_normal;\nvoid main() {\n    float light=0.58+0.42*abs(dot(normalize(v_normal),normalize(vec3(0.3,0.6,1.0))));\n    gl_FragColor=vec4(v_color.rgb*light,v_color.a);\n}\n')])

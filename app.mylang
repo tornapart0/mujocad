@@ -1,0 +1,1930 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""Python CAD desktop, with OpenCascade solids and a Qt/OpenGL viewport."""
+import sys, json, subprocess, os, shutil
+from pathlib import Path
+import numpy as np
+from PySide6 import QtWidgets as W, QtCore as C, QtGui as G
+import pyqtgraph.opengl as gl
+from viewport import Viewport
+from materials import CAD_SURFACE
+from theme import STYLE, SolarMark
+from measurements import MeasurementPanel
+from editor_actions import copy_parts, paste_parts, cut_hole
+from scipy.spatial.transform import Rotation
+from model import Part, world_position, validate, save_project, load_project, geometry_key, world_matrix, set_world_matrix, world_matrices
+from jobs import Job
+from cad_worker import CADWorker
+from training_ui import TrainingWizard, TrainingPanel, TrainingLibrary, job_folder
+from dialogs import ConstraintEditor, BooleanOperands
+from copy import deepcopy
+ROOT = Path(__file__).resolve().parent
+
+class SketchCanvas(W.QWidget)
+{
+    changed = C.Signal(object)
+
+    def __init__(self)
+    {
+        super().__init__()
+        self.setMinimumSize(640, 430)
+        self.points = []
+        self.start = None
+        self.mode = 'Rectangle'
+        self.snap = 5.0
+        self.scale = 3.0
+        self.drawing = False
+
+    }
+    def point(self, event)
+    {
+        x = (event.position().x() - self.width() / 2) / self.scale
+        y = (self.height() / 2 - event.position().y()) / self.scale
+        return [round(x / self.snap) * self.snap, round(y / self.snap) * self.snap]
+
+    }
+    def mousePressEvent(self, e)
+    {
+        p = self.point(e)
+        if self.mode == 'Circle'
+        {
+            self.start = p
+            self.points = [[p[0] + 1, p[1]], [p[0], p[1] + 1], [p[0] - 1, p[1]]]
+        }
+        elif self.mode == 'Freehand'
+        {
+            self.points = [p]
+            self.drawing = True
+        }
+        elif self.mode == 'Polygon'
+        {
+            self.points.append(p)
+        }
+        else
+        {
+            self.start = p
+            self.points = [p, p, p, p]
+        }
+        self.update()
+
+    }
+    def mouseMoveEvent(self, e)
+    {
+        if self.drawing
+        {
+            p = self.point(e)
+            if not self.points or np.linalg.norm(np.array(p) - self.points[-1]) >= max(self.snap, 2)
+            {
+                self.points.append(p)
+                self.update()
+            }
+        }
+        if self.start is not None and e.buttons() & C.Qt.LeftButton
+        {
+            x, y = self.start
+            a, b = self.point(e)
+            if self.mode == 'Circle'
+            {
+                radius = max(1, float(np.hypot(a - x, b - y)))
+                self.points = [[x + radius * np.cos(t), y + radius * np.sin(t)] for t in np.linspace(0, 2 * np.pi, 48, endpoint=False)]
+            }
+            else
+            {
+                self.points = [[x, y], [a, y], [a, b], [x, b]]
+            }
+            self.update()
+
+        }
+    }
+    def mouseReleaseEvent(self, e)
+    {
+        self.start = None
+        self.drawing = False
+        if len(self.points) >= 3
+        {
+            self.changed.emit(self.points)
+
+        }
+    }
+    def paintEvent(self, e)
+    {
+        painter = G.QPainter(self)
+        painter.fillRect(self.rect(), G.QColor('#f5efdf'))
+        painter.setRenderHint(G.QPainter.Antialiasing)
+        cx = self.width() / 2
+        cy = self.height() / 2
+        step = self.snap * self.scale
+        painter.setPen(G.QPen(G.QColor('#d5d8bf'), 1))
+        for x in np.arange(cx % step, self.width(), step)
+        {
+            painter.drawLine(int(x), 0, int(x), self.height())
+        }
+        for y in np.arange(cy % step, self.height(), step)
+        {
+            painter.drawLine(0, int(y), self.width(), int(y))
+        }
+        painter.setPen(G.QPen(G.QColor('#9caa83'), 1))
+        painter.drawLine(int(cx), 0, int(cx), self.height())
+        painter.drawLine(0, int(cy), self.width(), int(cy))
+        if self.points
+        {
+            poly = G.QPolygonF([C.QPointF(cx + x * self.scale, cy - y * self.scale) for x, y in self.points])
+            painter.setPen(G.QPen(G.QColor('#386247'), 2))
+            painter.setBrush(G.QColor(112, 151, 83, 65))
+            painter.drawPolygon(poly)
+            for i, p in enumerate(poly)
+            {
+                painter.drawEllipse(p, 3, 3)
+                if len(poly) <= 24
+                {
+                    painter.drawText(p + C.QPointF(6, -6), str(i + 1))
+
+                }
+            }
+        }
+    }
+}
+class SketchDialog(W.QDialog)
+
+{
+    def __init__(self, parent)
+    {
+        super().__init__(parent)
+        self.setWindowTitle('Sketch → solid')
+        self.resize(780, 600)
+        layout = W.QVBoxLayout(self)
+        layout.addWidget(W.QLabel('Drag a rectangle, click polygon corners, or draw a freehand outline. The profile closes automatically.'))
+        row = W.QHBoxLayout()
+        self.mode = W.QComboBox()
+        self.mode.addItems(['Rectangle', 'Circle', 'Polygon', 'Freehand'])
+        row.addWidget(self.mode)
+        row.addWidget(W.QLabel('Grid spacing'))
+        self.grid = W.QDoubleSpinBox()
+        self.grid.setRange(1, 25)
+        self.grid.setValue(5)
+        row.addWidget(self.grid)
+        clear = W.QPushButton('Clear sketch')
+        row.addWidget(clear)
+        row.addStretch()
+        layout.addLayout(row)
+        self.canvas = SketchCanvas()
+        layout.addWidget(self.canvas, 1)
+        self.constraints = []
+        constraint_button = W.QPushButton('Add dimensions and geometric constraints')
+        constraint_button.clicked.connect(self.edit_constraints)
+        layout.addWidget(constraint_button)
+        self.mode.currentTextChanged.connect(lambda mode: constraint_button.setEnabled(mode != 'Circle'))
+        form = W.QFormLayout()
+        self.width = W.QDoubleSpinBox()
+        self.depth = W.QDoubleSpinBox()
+        self.height = W.QDoubleSpinBox()
+        for spin, value in [(self.width, 100), (self.depth, 60), (self.height, 20)]
+        {
+            spin.setRange(1, 2000)
+            spin.setValue(value)
+            spin.setSuffix(' mm')
+        }
+        self.canvas.changed.connect(self.profile_changed)
+        form.addRow('Final width', self.width)
+        form.addRow('Final depth', self.depth)
+        form.addRow('Extrusion height', self.height)
+        layout.addLayout(form)
+        buttons = W.QDialogButtonBox(W.QDialogButtonBox.Ok | W.QDialogButtonBox.Cancel)
+        buttons.button(W.QDialogButtonBox.Ok).setText('Extrude solid')
+        layout.addWidget(buttons)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        self.mode.currentTextChanged.connect(lambda s: setattr(self.canvas, 'mode', s))
+        self.grid.valueChanged.connect(lambda v: setattr(self.canvas, 'snap', v))
+        clear.clicked.connect(lambda: (self.canvas.points.clear(), self.canvas.update()))
+
+    }
+    def profile_changed(self, points)
+    {
+        self.constraints = []
+        self.width.setEnabled(True)
+        self.depth.setEnabled(True)
+        self.measure_profile(points)
+
+    }
+    def edit_constraints(self)
+    {
+        if len(self.canvas.points) < 3
+        {
+            return
+        }
+        dialog = ConstraintEditor(self.canvas.points, self.constraints, self)
+        if dialog.exec() == W.QDialog.Accepted
+        {
+            self.constraints = dialog.constraints
+            self.canvas.points = dialog.points
+            self.canvas.update()
+            self.measure_profile(dialog.points)
+            self.width.setEnabled(not self.constraints)
+            self.depth.setEnabled(not self.constraints)
+
+        }
+    }
+    def measure_profile(self, points)
+    {
+        if self.canvas.points != points
+        {
+            self.constraints = []
+        }
+        self.width.setValue(max((p[0] for p in points)) - min((p[0] for p in points)))
+        self.depth.setValue(max((p[1] for p in points)) - min((p[1] for p in points)))
+
+    }
+    def accept(self)
+    {
+        if len(self.canvas.points) < 3
+        {
+            W.QMessageBox.information(self, 'Draw a profile', 'Draw a closed profile first.')
+            return
+        }
+        super().accept()
+
+    }
+}
+class Window(W.QMainWindow)
+
+{
+    def __init__(self)
+    {
+        super().__init__()
+        self.setWindowTitle('MuJoCoCAD • Robot editor 0.5 · Sensible Lang')
+        self.resize(1320, 850)
+        self.training_panels = []
+        self.cad_worker = CADWorker()
+        self.pool = C.QThreadPool(self)
+        self.pool.setMaxThreadCount(1)
+        self.jobs = []
+        self.render_revision = 0
+        self.parts = [Part('Sketch_A', shape='Sketch', sketch=[[0, 0], [50, 0], [50, 40], [0, 40]], size=[50, 40, 30], position=[-30, 0, 15]), Part('Sketch_B', shape='Sketch', sketch=[[0, 0], [40, 0], [40, 30], [0, 30]], size=[40, 30, 30], position=[15, 0, 15], color=[0.65, 0.73, 0.43, 1])]
+        self.redo_history = []
+        self.mesh_cache = {}
+        self.boxes = []
+        self.gizmo_length = 75
+        self.selected = 0
+        self.path = None
+        self.items = []
+        self.loading = False
+        self.history = []
+        self.selection_overlays = []
+        self.faces = []
+        self.dirty = False
+        shell = W.QWidget()
+        self.setCentralWidget(shell)
+        layout = W.QVBoxLayout(shell)
+        layout.setContentsMargins(16, 12, 16, 12)
+        brand = W.QHBoxLayout()
+        brand.addWidget(SolarMark())
+        brand_text = W.QVBoxLayout()
+        brand_text.setSpacing(2)
+        title = W.QLabel('MuJoCoCAD')
+        title.setObjectName('brand')
+        brand_text.addWidget(title)
+        subtitle = W.QLabel('SOLARPUNK STUDIO  ·  Design a world that moves')
+        subtitle.setObjectName('brandNote')
+        brand_text.addWidget(subtitle)
+        brand.addLayout(brand_text)
+        brand.addStretch()
+        layout.addLayout(brand)
+        self.selection_label = W.QLabel('Sketch · Assemble · Simulate')
+        layout.addWidget(self.selection_label)
+        toolbar = W.QHBoxLayout()
+        for text, fn in [('Sketch', self.add_sketch), ('Add solid', self.add_part), ('Hole', lambda: cut_hole(self)), ('Join selected', self.join_selected), ('Boolean', self.boolean_selected), ('Undo', self.undo), ('Redo', self.redo), ('Delete object', self.remove), ('Copy', lambda: copy_parts(self)), ('Paste', lambda: paste_parts(self))]
+        {
+            b = W.QPushButton(text)
+            b.clicked.connect(fn)
+            toolbar.addWidget(b)
+            if text == 'Delete object'
+            {
+                self.delete_button = b
+                b.setToolTip('Delete selected objects · Delete or Backspace · Undo restores them')
+            }
+            if text == 'Boolean'
+            {
+                self.boolean_button = b
+                b.setToolTip('Select two solids to union, cut or intersect their geometry.')
+            }
+            if text == 'Join selected'
+            {
+                self.join_button = b
+                b.setToolTip('Select two parts with Shift-click, then choose how they connect.')
+            }
+        }
+        toolbar.addStretch()
+        for text, fn in [('Create Training', self.create_training), ('Export', self.export), ('▶ Simulate', self.simulate)]
+        {
+            b = W.QPushButton(text)
+            b.clicked.connect(fn)
+            toolbar.addWidget(b)
+            if text == 'Create Training'
+            {
+                b.setObjectName('primary')
+                b.setToolTip('Choose a goal, train this robot, and watch what it learns.')
+            }
+        }
+        training_menu = self.menuBar().addMenu('Training')
+        training_menu.addAction('Create training…', self.create_training)
+        training_menu.addAction('Open saved training…', self.open_training)
+        training_menu.addAction('Show current training', self.show_training)
+        view_menu = self.menuBar().addMenu('View')
+        for name in ['Front', 'Right', 'Top']
+        {
+            action = view_menu.addAction(name)
+            action.triggered.connect(lambda checked=False, n=name: self.camera_view(n))
+        }
+        action = view_menu.addAction('Frame selection · F')
+        action.triggered.connect(self.frame_selection)
+        file_menu = self.menuBar().addMenu('File')
+        for text, fn in [('New design', self.new_design), ('Open project…', self.open), ('Save project…', self.save)]
+        {
+            action = file_menu.addAction(text)
+            action.triggered.connect(fn)
+        }
+        examples = file_menu.addMenu('Example robots')
+        for title, filename in [('Motorized arm', 'MotorizedArm'), ('Floating robot', 'FloatingRobot')]
+        {
+            action = examples.addAction(title)
+            action.triggered.connect(lambda checked=False, n=filename: self.open_example(n))
+        }
+        edit_menu = self.menuBar().addMenu('Edit')
+        edit_menu.addAction('Copy parts', lambda: copy_parts(self))
+        edit_menu.addAction('Paste parts', lambda: paste_parts(self))
+        for text, fn in [('Duplicate part', self.duplicate), ('Remove part', self.remove)]
+        {
+            action = edit_menu.addAction(text)
+            action.triggered.connect(fn)
+        }
+        layout.addLayout(toolbar)
+        navigation = W.QHBoxLayout()
+        hint = W.QLabel('Pinch to zoom · Two-finger scroll to pan')
+        navigation.addWidget(hint)
+        navigation.addStretch()
+        for label, callback in [('Front', lambda: self.camera_view('Front')), ('Top', lambda: self.camera_view('Top')), ('3D', lambda: self.view.setCameraPosition(azimuth=45, elevation=25)), ('Fit', self.frame_selection), ('−', lambda: self.view.zoom(1 / 1.25)), ('+', lambda: self.view.zoom(1.25))]
+        {
+            button = W.QPushButton(label)
+            button.setToolTip({'Fit': 'Frame selected parts, or the entire design', '−': 'Zoom out', '+': 'Zoom in'}.get(label, 'Change camera view'))
+            button.clicked.connect(callback)
+            navigation.addWidget(button)
+        }
+        grid_label = W.QLabel('Grid')
+        navigation.addWidget(grid_label)
+        self.grid_spacing = W.QComboBox()
+        self.grid_spacing.addItems(['10 mm', '25 mm', '50 mm', '100 mm'])
+        self.grid_spacing.setCurrentIndex(1)
+        navigation.addWidget(self.grid_spacing)
+        layout.addLayout(navigation)
+        splitter = W.QSplitter()
+        layout.addWidget(splitter, 1)
+        rail = W.QWidget()
+        rail.setFixedWidth(100)
+        tools = W.QVBoxLayout(rail)
+        tools.setContentsMargins(4, 6, 4, 6)
+        tools.addWidget(W.QLabel('TOOLS'))
+        self.tool_buttons = {}
+        for name, key in [('Select', 'V'), ('Move', 'G'), ('Rotate', 'R'), ('Scale', 'S'), ('Extrude', 'E'), ('Orbit', 'O'), ('Pan', 'H'), ('Measure', 'M')]
+        {
+            button = W.QPushButton(f'{name}  {key}')
+            button.setCheckable(True)
+            button.clicked.connect(lambda checked=False, n=name: self.set_tool(n))
+            tools.addWidget(button)
+            self.tool_buttons[name] = button
+        }
+        sketch_button = W.QPushButton('Sketch  K')
+        sketch_button.clicked.connect(self.add_sketch)
+        tools.addWidget(sketch_button)
+        tools.addStretch()
+        hint = W.QLabel('Shift-click two parts, then Join.')
+        hint.setWordWrap(True)
+        tools.addWidget(hint)
+        splitter.addWidget(rail)
+        self.stack = W.QStackedWidget()
+        self.view = Viewport(self)
+        self.stack.addWidget(self.view)
+        for name, key in [('Select', 'V'), ('Move', 'G'), ('Rotate', 'R'), ('Scale', 'S'), ('Extrude', 'E'), ('Orbit', 'O'), ('Pan', 'H'), ('Measure', 'M')]
+        {
+            shortcut = G.QShortcut(G.QKeySequence(key), self.view)
+            shortcut.setContext(C.Qt.WidgetShortcut)
+            shortcut.activated.connect(lambda n=name: self.set_tool(n))
+        }
+        self.grid_items = []
+        self.update_grid()
+        self.grid_spacing.currentIndexChanged.connect(self.update_grid)
+        splitter.addWidget(self.stack)
+        sidebar = W.QWidget()
+        side = W.QVBoxLayout(sidebar)
+        side.setContentsMargins(4, 0, 0, 0)
+        sidebar.setMinimumWidth(300)
+        sidebar.setMaximumWidth(380)
+        side.addWidget(W.QLabel('OBJECTS'))
+        self.list = W.QListWidget()
+        self.list.setContextMenuPolicy(C.Qt.CustomContextMenu)
+        self.list.customContextMenuRequested.connect(self.object_context_menu)
+        self.list.setSelectionMode(W.QAbstractItemView.ExtendedSelection)
+        self.list.setMinimumHeight(100)
+        self.list.setMaximumHeight(140)
+        side.addWidget(self.list)
+        self.measurements = MeasurementPanel(self)
+        side.addWidget(self.measurements)
+        tabs = W.QTabWidget()
+        self.tabs = tabs
+        tabs.currentChanged.connect(lambda: self.render_gizmo())
+        side.addWidget(tabs, 1)
+        splitter.addWidget(sidebar)
+
+        def make_tab(name)
+        {
+            scroll = W.QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(W.QFrame.NoFrame)
+            widget = W.QWidget()
+            form = W.QFormLayout(widget)
+            form.setRowWrapPolicy(W.QFormLayout.WrapAllRows)
+            form.setFieldGrowthPolicy(W.QFormLayout.AllNonFixedFieldsGrow)
+            scroll.setWidget(widget)
+            tabs.addTab(scroll, name)
+            return form
+        }
+        form = make_tab('Shape')
+        self.name = W.QLineEdit()
+        form.addRow('Name', self.name)
+        self.shape = W.QComboBox()
+        self.shape.addItems(['Box', 'Cylinder', 'Sphere', 'Sketch', 'Boolean'])
+        form.addRow('Feature', self.shape)
+        self.size = self.vector(form, 'Dimensions · mm', [1, 2000])
+        self.fillet = self.spin(0, 100, 0)
+        form.addRow('Edge radius · mm', self.fillet)
+        self.rotation = self.vector(form, 'Rotation · degrees', [-360, 360])
+        self.edit_geometry = W.QPushButton('Edit sketch constraints / Boolean operands')
+        self.edit_geometry.clicked.connect(self.edit_feature)
+        form.addRow(self.edit_geometry)
+        self.pos = self.vector(form, 'Position relative to parent · mm', [-5000, 5000])
+        self.mass = W.QLabel()
+        form.addRow('Calculated mass', self.mass)
+        color = W.QPushButton('Change color')
+        color.clicked.connect(self.color)
+        form.addRow(color)
+        note = W.QLabel('Click a part to select it. Shift-click to add another. Drag colored axes to move or resize.')
+        note.setWordWrap(True)
+        form.addRow(note)
+        form = make_tab('Joint')
+        self.parent = W.QComboBox()
+        form.addRow('Parent part', self.parent)
+        self.joint = W.QComboBox()
+        self.joint.addItems(['Fixed', 'Hinge', 'Slide', 'Ball', 'Free'])
+        form.addRow('Connection', self.joint)
+        self.axis = W.QComboBox()
+        self.axis.addItems(['X', 'Y', 'Z'])
+        form.addRow('Motion axis', self.axis)
+        self.pivot = self.vector(form, 'Pivot in child coordinates · mm', [-2000, 2000])
+        self.minimum = self.spin(-10000, 10000, -90)
+        self.maximum = self.spin(-10000, 10000, 90)
+        form.addRow('Minimum · degrees / mm', self.minimum)
+        form.addRow('Maximum · degrees / mm', self.maximum)
+        self.unlimited = W.QCheckBox('Unlimited rotation / travel')
+        form.addRow(self.unlimited)
+        self.motor = W.QComboBox()
+        self.motor.addItems(['None', 'Torque', 'Position', 'Velocity'])
+        form.addRow('Motor mode', self.motor)
+        self.gear = self.spin(0.001, 10000, 1)
+        form.addRow('Gear ratio', self.gear)
+        self.kp = self.spin(0, 100000, 30)
+        self.kv = self.spin(0, 100000, 2)
+        form.addRow('Position gain kp', self.kp)
+        form.addRow('Damping / velocity gain kv', self.kv)
+        self.control = self.spin(-100000, 100000, 0)
+        form.addRow('Initial target · Nm, N, degrees, mm, or /s', self.control)
+        self.damping = self.spin(0, 10000, 0.2)
+        self.frictionloss = self.spin(0, 10000, 0)
+        self.armature = self.spin(0, 10000, 0.001)
+        form.addRow('Joint damping', self.damping)
+        form.addRow('Joint friction loss', self.frictionloss)
+        form.addRow('Rotor armature', self.armature)
+        closure = W.QPushButton('Add loop closure between selected parts')
+        closure.clicked.connect(self.add_closure)
+        form.addRow(closure)
+        clearclosure = W.QPushButton('Remove this part’s loop closure')
+        clearclosure.clicked.connect(self.clear_closure)
+        form.addRow(clearclosure)
+        joint_note = W.QLabel('A fixed join keeps separate editable CAD parts in one rigid assembly. A hinge or slider adds a motor.')
+        joint_note.setWordWrap(True)
+        form.addRow(joint_note)
+        form = make_tab('Physics')
+        self.physics_state = W.QLabel()
+        self.physics_state.setWordWrap(True)
+        form.addRow(self.physics_state)
+        fall = W.QPushButton('Let assembly fall')
+        fall.setToolTip('Release the root of this assembly so gravity and ground contact can move it.')
+        fall.clicked.connect(lambda: self.set_assembly_floating(True))
+        form.addRow(fall)
+        anchor = W.QPushButton('Anchor assembly to world')
+        anchor.clicked.connect(lambda: self.set_assembly_floating(False))
+        form.addRow(anchor)
+        physics_environment = W.QLabel('Simulation: gravity 9.81 m/s² downward · solid ground at Z = 0 mm. The CAD canvas is an editing preview.')
+        physics_environment.setWordWrap(True)
+        form.addRow(physics_environment)
+        self.density = self.spin(1, 25000, 1000)
+        form.addRow('Density · kg/m³', self.density)
+        self.torque = self.spin(0.001, 10000, 2)
+        form.addRow('Motor force · Nm / N', self.torque)
+        self.override_mass = self.spin(0, 100000, 0)
+        form.addRow('Mass override · kg (0 = density)', self.override_mass)
+        self.collision = W.QComboBox()
+        self.collision.addItems(['Auto', 'Primitive', 'Convex hull', 'Decomposition', 'None'])
+        form.addRow('Collision geometry', self.collision)
+        self.collision_tolerance = self.spin(0.05, 50, 2)
+        form.addRow('Decomposition tolerance · mm', self.collision_tolerance)
+        self.friction = self.vector(form, 'Contact friction · sliding, torsional, rolling', [0, 10])
+        self.sensors = W.QCheckBox('Export pose and joint sensors')
+        form.addRow(self.sensors)
+        physics_note = W.QLabel('Auto uses exact primitive collisions for simple solids and convex decomposition for sketches and Booleans. Smaller tolerance preserves finer cavities, at greater export cost.')
+        physics_note.setWordWrap(True)
+        form.addRow(physics_note)
+        apply = W.QPushButton('Apply changes')
+        apply.setObjectName('primary')
+        apply.clicked.connect(self.apply)
+        side.addWidget(apply)
+        splitter.setSizes([100, 900, 320])
+        self.list.currentRowChanged.connect(self.select)
+        self.list.itemSelectionChanged.connect(self.highlight)
+        for target in [self.view, self.list]
+        {
+            for key, fn in [(G.QKeySequence.StandardKey.Copy, lambda: copy_parts(self)), (G.QKeySequence.StandardKey.Paste, lambda: paste_parts(self))]
+            {
+                shortcut = G.QShortcut(G.QKeySequence(key), target)
+                shortcut.setContext(C.Qt.WidgetShortcut)
+                shortcut.activated.connect(fn)
+            }
+            for key in ['Delete', 'Backspace']
+            {
+                shortcut = G.QShortcut(G.QKeySequence(key), target)
+                shortcut.setContext(C.Qt.WidgetShortcut)
+                shortcut.activated.connect(self.remove)
+            }
+        }
+        for key, fn in [('Ctrl+Z', self.undo), ('Ctrl+Shift+Z', self.redo), ('Ctrl+S', self.save), ('Ctrl+D', self.duplicate)]
+        {
+            shortcut = G.QShortcut(G.QKeySequence(key), self)
+            shortcut.activated.connect(fn)
+        }
+        for key, fn in [('K', self.add_sketch), ('J', self.join_selected), ('F', self.frame_selection), ('1', lambda: self.camera_view('Front')), ('3', lambda: self.camera_view('Right')), ('7', lambda: self.camera_view('Top'))]
+        {
+            shortcut = G.QShortcut(G.QKeySequence(key), self.view)
+            shortcut.setContext(C.Qt.WidgetShortcut)
+            shortcut.activated.connect(fn)
+        }
+        self.joint.currentTextChanged.connect(self.inspector_state)
+        self.motor.currentTextChanged.connect(self.inspector_state)
+        self.set_tool('Select')
+        self.autosave_timer = C.QTimer(self)
+        self.autosave_timer.timeout.connect(self.autosave)
+        self.autosave_timer.start(30000)
+        self.statusBar().showMessage('Ready • two sketch solids')
+        self.refresh()
+        self.list.clearSelection()
+        self.frame_selection()
+
+    }
+    def inspector_state(self)
+    {
+        joint = self.joint.currentText()
+        mode = self.motor.currentText()
+        scalar = joint in ['Hinge', 'Slide']
+        moving = joint in ['Hinge', 'Slide', 'Ball']
+        for w in [self.axis, self.minimum, self.maximum, self.unlimited]
+        {
+            w.setEnabled(scalar)
+        }
+        for w in self.pivot + [self.damping, self.frictionloss, self.armature]
+        {
+            w.setEnabled(moving)
+        }
+        self.motor.setEnabled(moving)
+        for w in [self.gear, self.control, self.torque]
+        {
+            w.setEnabled(moving and mode != 'None')
+        }
+        self.kp.setEnabled(scalar and mode == 'Position')
+        self.kv.setEnabled(scalar and mode in ['Position', 'Velocity'])
+        unit = ('°' if joint == 'Hinge' else ' mm') if mode == 'Position' else ('°/s' if joint == 'Hinge' else ' mm/s') if mode == 'Velocity' else ' N' if joint == 'Slide' else ' Nm'
+        self.control.setSuffix(unit)
+
+    }
+    def spin(self, lo, hi, value)
+    {
+        s = W.QDoubleSpinBox()
+        s.setRange(lo, hi)
+        s.setDecimals(2)
+        s.setValue(value)
+        return s
+
+    }
+    def vector(self, form, label, limits, suffix='')
+    {
+        row = W.QWidget()
+        layout = W.QHBoxLayout(row)
+        layout.setContentsMargins(0, 0, 0, 0)
+        spins = []
+        for axis in 'XYZ'
+        {
+            s = self.spin(*limits, 0)
+            s.setPrefix(axis + ' ')
+            s.setSuffix(suffix)
+            s.setMinimumWidth(0)
+            s.setMaximumWidth(86)
+            s.setSizePolicy(W.QSizePolicy.Ignored, W.QSizePolicy.Fixed)
+            layout.addWidget(s)
+            spins.append(s)
+        }
+        form.addRow(label, row)
+        return spins
+
+    }
+    def remember(self)
+    {
+        from copy import deepcopy
+        self.history.append(deepcopy(self.parts))
+        self.history = self.history[-50:]
+        self.redo_history.clear()
+        self.dirty = True
+
+    }
+    def undo(self)
+    {
+        if self.history
+        {
+            from copy import deepcopy
+            self.redo_history.append(deepcopy(self.parts))
+            self.parts = self.history.pop()
+            self.mesh_cache.clear()
+            self.refresh()
+
+        }
+    }
+    def redo(self)
+    {
+        if self.redo_history
+        {
+            from copy import deepcopy
+            self.history.append(deepcopy(self.parts))
+            self.parts = self.redo_history.pop()
+            self.mesh_cache.clear()
+            self.refresh()
+
+        }
+    }
+    def error(self, e)
+    {
+        W.QMessageBox.warning(self, 'Check your design', str(e))
+
+    }
+    def refresh(self)
+    {
+        self.list.blockSignals(True)
+        self.list.clear()
+        for p in self.parts
+        {
+            item = W.QListWidgetItem(('↳ ' if p.parent else '') + p.name + '  ·  ' + p.joint)
+            item.setToolTip(p.shape + ' · parent: ' + (p.parent or 'world'))
+            pix = G.QPixmap(12, 12)
+            pix.fill(G.QColor.fromRgbF(*p.color))
+            item.setIcon(G.QIcon(pix))
+            self.list.addItem(item)
+        }
+        self.selected = min(max(self.selected, 0), len(self.parts) - 1)
+        self.list.setCurrentRow(self.selected)
+        self.list.blockSignals(False)
+        self.select(self.selected)
+        self.render()
+
+    }
+    def select(self, row)
+    {
+        if row < 0
+        {
+            return
+        }
+        self.selected = row
+        p = self.parts[row]
+        self.name.setText(p.name)
+        self.shape.setCurrentText(p.shape)
+        for widgets, values in [(self.size, p.size), (self.pos, p.position), (self.pivot, p.pivot), (self.rotation, p.rotation), (self.friction, p.friction)]
+        {
+            for w, v in zip(widgets, values)
+            {
+                w.setValue(v)
+            }
+        }
+        self.fillet.setValue(p.fillet)
+        self.parent.clear()
+        self.parent.addItem('World (root)', '')
+        for q in self.parts
+        {
+            if q.name != p.name
+            {
+                self.parent.addItem(q.name, q.name)
+            }
+        }
+        self.parent.setCurrentIndex(max(0, self.parent.findData(p.parent)))
+        self.joint.setCurrentText(p.joint)
+        self.axis.setCurrentText(p.axis)
+        self.minimum.setValue(p.limits[0])
+        self.maximum.setValue(p.limits[1])
+        self.density.setValue(p.density)
+        self.torque.setValue(p.torque)
+        for name in ['gear', 'kp', 'kv', 'control', 'damping', 'frictionloss', 'armature', 'collision_tolerance']
+        {
+            getattr(self, name).setValue(getattr(p, name))
+        }
+        self.override_mass.setValue(p.mass)
+        self.unlimited.setChecked(p.unlimited)
+        self.sensors.setChecked(p.sensors)
+        self.motor.setCurrentText(p.motor)
+        self.collision.setCurrentText(p.collision)
+        self.inspector_state()
+        root = self.assembly_root(p)
+        self.physics_state.setText(('Floating assembly: gravity can move it.' if root.joint == 'Free' else 'Anchored assembly: the base stays fixed.' if root.joint == 'Fixed' else 'Constrained assembly: motion follows its root joint.') + ' Root: ' + root.name + ('. Collision is disabled for this part.' if p.collision == 'None' else ''))
+        self.edit_geometry.setEnabled(p.shape in ['Sketch', 'Boolean'])
+        for w in self.size[:2]
+        {
+            w.setEnabled(p.shape != 'Boolean' and (not p.constraints))
+        }
+        self.size[2].setEnabled(p.shape != 'Boolean')
+        self.mass.setText('Calculating…')
+        key = geometry_key(p)
+        if key in self.mesh_cache
+        {
+            self.mass.setText(f'{p.mass or self.mesh_cache[key][2] * 1e-09 * p.density:.4f} kg')
+        }
+        if self.items and len(self.items) == len(self.parts)
+        {
+            self.render_gizmo()
+        }
+        self.measurements.update_dimensions()
+        self.view.update()
+
+    }
+    def selected_rows(self)
+    {
+        return sorted({i.row() for i in self.list.selectedIndexes()})
+
+    }
+    def highlight(self)
+    {
+        selected = self.selected_rows()
+        names = [self.parts[i].name for i in selected if i < len(self.parts)]
+        for i, item in enumerate(self.items[:len(self.parts)])
+        {
+            item.setColor((0.91, 0.72, 0.36, 1.0) if i in selected else tuple(self.parts[i].color))
+            item.opts['drawEdges'] = False
+            item.update()
+        }
+        for overlay in self.selection_overlays
+        {
+            self.view.removeItem(overlay)
+        }
+        self.selection_overlays = []
+        for i in selected
+        {
+            if i >= len(self.boxes)
+            {
+                continue
+            }
+            lo, hi = self.boxes[i]
+            padding = np.maximum((hi - lo) * 0.025, 1.0)
+            lo = lo - padding
+            hi = hi + padding
+            corners = np.array([[x, y, z] for x in [lo[0], hi[0]] for y in [lo[1], hi[1]] for z in [lo[2], hi[2]]])
+            edges = []
+            for a in range(8)
+            {
+                for mask in [1, 2, 4]
+                {
+                    b = a ^ mask
+                    if a < b
+                    {
+                        edges.extend([corners[a], corners[b]])
+                    }
+                }
+            }
+            line = gl.GLLinePlotItem(pos=np.array(edges), color=(1.0, 0.86, 0.52, 1), width=2, mode='lines', antialias=True)
+            line.setGLOptions('translucent')
+            self.view.addItem(line)
+            self.selection_overlays.append(line)
+        }
+        if hasattr(self, 'delete_button')
+        {
+            self.delete_button.setEnabled(bool(selected))
+        }
+        if hasattr(self, 'join_button')
+        {
+            self.join_button.setEnabled(len(selected) == 2)
+        }
+        if hasattr(self, 'boolean_button')
+        {
+            self.boolean_button.setEnabled(len(selected) == 2)
+        }
+        if hasattr(self, 'selection_label')
+        {
+            self.selection_label.setText('Selected: ' + (' + '.join(names) if names else 'none') + '    ·    ' + ('Ready to join' if len(selected) == 2 else 'Shift-click to select two parts'))
+        }
+        self.measurements.update_dimensions()
+        self.view.update()
+
+    }
+    def frame_selection(self)
+    {
+        if len(self.boxes) != len(self.parts)
+        {
+            return
+        }
+        rows = self.selected_rows() or list(range(len(self.parts)))
+        if not rows
+        {
+            return
+        }
+        lo = np.min([self.boxes[i][0] for i in rows], axis=0)
+        hi = np.max([self.boxes[i][1] for i in rows], axis=0)
+        center = (lo + hi) / 2
+        self.view.opts['center'] = G.QVector3D(*map(float, center))
+        self.view.opts['distance'] = max(float(np.linalg.norm(hi - lo)) * 2.2, 100)
+        self.view.update()
+
+    }
+    def camera_view(self, name)
+    {
+        azimuth, elevation = {'Front': (-90, 0), 'Right': (0, 0), 'Top': (-90, 90)}[name]
+        self.view.setCameraPosition(azimuth=azimuth, elevation=elevation)
+
+    }
+    def autosave(self)
+    {
+        if self.parts and self.dirty and (os.environ.get('MUJOCAD_DISABLE_RECOVERY') != '1')
+        {
+            try
+            {
+                save_project(ROOT / 'Recovery.mjcad', self.parts)
+            }
+            except Exception
+            {
+                pass
+
+            }
+        }
+    }
+    def closeEvent(self, event)
+    {
+        running = [p for p in self.training_panels if p.running]
+        if running
+        {
+            answer = W.QMessageBox.question(self, 'Training is running', 'Stop training and close the editor? Use Cancel to keep training.', W.QMessageBox.Ok | W.QMessageBox.Cancel)
+            if answer != W.QMessageBox.Ok
+            {
+                event.ignore()
+                return
+            }
+            for panel in running
+            {
+                panel.stop_training()
+                if not panel.process.waitForFinished(15000)
+                {
+                    panel.process.kill()
+                    panel.process.waitForFinished(2000)
+                }
+            }
+        }
+        for panel in self.training_panels
+        {
+            for viewer in panel.watchers
+            {
+                if viewer.state() != C.QProcess.NotRunning
+                {
+                    viewer.terminate()
+                    viewer.waitForFinished(2000)
+                }
+            }
+        }
+        self.autosave()
+        self.pool.waitForDone(1000)
+        self.cad_worker.close()
+        self.pool.waitForDone(1000)
+        event.accept()
+
+    }
+    def update_grid(self, *args)
+    {
+        for item in self.grid_items
+        {
+            self.view.removeItem(item)
+        }
+        self.grid_items = []
+        spacing = float(self.grid_spacing.currentText().split()[0])
+        extent = 1000.0
+        grid = gl.GLGridItem(color=(175, 195, 144, 145))
+        grid.setSize(extent, extent)
+        grid.setSpacing(spacing, spacing)
+        self.view.addItem(grid)
+        self.grid_items.append(grid)
+        lines = []
+        for value in np.arange(-extent / 2, extent / 2 + 0.01, spacing)
+        {
+            if abs(value / (spacing * 4) - round(value / (spacing * 4))) < 1e-06
+            {
+                lines.extend([[value, -extent / 2, 0.02], [value, extent / 2, 0.02], [-extent / 2, value, 0.02], [extent / 2, value, 0.02]])
+            }
+        }
+        major = gl.GLLinePlotItem(pos=np.array(lines), color=(0.76, 0.8, 0.58, 0.7), mode='lines', width=1.5, antialias=True, glOptions='translucent')
+        self.view.addItem(major)
+        self.grid_items.append(major)
+        for points, color in [([[-500, 0, 0.04], [500, 0, 0.04]], (0.91, 0.62, 0.43, 1)), ([[0, -500, 0.04], [0, 500, 0.04]], (0.62, 0.84, 0.57, 1))]
+        {
+            axis = gl.GLLinePlotItem(pos=np.array(points), color=color, width=2, antialias=True, glOptions='translucent')
+            self.view.addItem(axis)
+            self.grid_items.append(axis)
+        }
+        self.view.update()
+
+    }
+    def set_tool(self, name)
+    {
+        self.view.tool = name
+        self.view.setFocus()
+        self.view.setCursor(C.Qt.CrossCursor if name == 'Measure' else C.Qt.ArrowCursor)
+        if name == 'Measure' and (not self.measurements.points)
+        {
+            self.measurements.clear()
+        }
+        for tool, button in self.tool_buttons.items()
+        {
+            button.setChecked(tool == name)
+        }
+        if self.items and len(self.items) == len(self.parts)
+        {
+            self.render_gizmo()
+        }
+        self.view.update()
+
+    }
+    def gizmo_axis(self, part, axis)
+    {
+        return world_matrix(part, self.parts)[:3, axis] if self.view.tool in ['Scale', 'Extrude'] else np.eye(3)[axis]
+
+    }
+    def rotation_ring(self, axis)
+    {
+        center = np.array(world_position(self.parts[self.selected], self.parts))
+        radius = max(20.0, float(np.linalg.norm(self.boxes[self.selected][1] - self.boxes[self.selected][0])) * 0.6)
+        angles = np.linspace(0, 2 * np.pi, 97)
+        basis = [i for i in range(3) if i != axis]
+        points = np.tile(center, (len(angles), 1))
+        points[:, basis[0]] += radius * np.cos(angles)
+        points[:, basis[1]] += radius * np.sin(angles)
+        return points
+
+    }
+    def render_gizmo(self)
+    {
+        for item in getattr(self, 'gizmos', [])
+        {
+            self.view.removeItem(item)
+        }
+        self.gizmos = []
+        if not self.parts
+        {
+            return
+        }
+        p = self.parts[self.selected]
+        if self.tabs.currentIndex() == 1 and p.joint in ['Hinge', 'Slide', 'Ball']
+        {
+            matrix = world_matrix(p, self.parts)
+            pivot = matrix[:3, :3] @ np.array(p.pivot) + matrix[:3, 3]
+            marker = gl.GLScatterPlotItem(pos=np.array([pivot]), color=(1, 0.88, 0.4, 1), size=13, pxMode=True)
+            self.view.addItem(marker)
+            self.gizmos.append(marker)
+            axis = matrix[:3, 'XYZ'.index(p.axis)]
+            line = gl.GLLinePlotItem(pos=np.array([pivot - axis * 25, pivot + axis * 25]), color=(1, 0.88, 0.4, 1), width=3, antialias=True)
+            self.view.addItem(line)
+            self.gizmos.append(line)
+        }
+        if self.view.tool == 'Rotate'
+        {
+            for axis, color in enumerate([(1, 0.4, 0.4, 1), (0.5, 0.9, 0.5, 1), (0.5, 0.7, 1, 1)])
+            {
+                line = gl.GLLinePlotItem(pos=self.rotation_ring(axis), color=color, width=3, antialias=True)
+                self.view.addItem(line)
+                self.gizmos.append(line)
+            }
+            self.view.update()
+            return
+        }
+        if self.view.tool not in ['Move', 'Scale', 'Extrude']
+        {
+            self.view.update()
+            return
+        }
+        center = np.array(world_position(self.parts[self.selected], self.parts))
+        for a, color in enumerate([(1, 0.3, 0.4, 1), (0.3, 0.9, 0.5, 1), (0.3, 0.6, 1, 1)])
+        {
+            end = center + self.gizmo_axis(self.parts[self.selected], a) * self.gizmo_length
+            line = gl.GLLinePlotItem(pos=np.array([center, end]), color=color, width=4, antialias=True)
+            self.view.addItem(line)
+            self.gizmos.append(line)
+
+        }
+    }
+    def run_job(self, fn, callback, message, on_error=None)
+    {
+        self.statusBar().showMessage(message)
+        job = Job(fn)
+        self.jobs.append(job)
+        job.callback = callback
+        job.failure_callback = on_error
+        job.signals.result.connect(self.job_result, C.Qt.QueuedConnection)
+        job.signals.error.connect(self.job_error, C.Qt.QueuedConnection)
+        self.pool.start(job)
+
+    }
+    @C.Slot(object)
+    def job_result(self, payload)
+    {
+        job, result = payload
+        try
+        {
+            job.callback(result)
+        }
+        except Exception as e
+        {
+            self.error(e)
+        }
+        finally
+        {
+            if job in self.jobs
+            {
+                self.jobs.remove(job)
+
+            }
+        }
+    }
+    @C.Slot(object)
+    def job_error(self, payload)
+    {
+        job, error = payload
+        if job in self.jobs
+        {
+            self.jobs.remove(job)
+        }
+        self.preview_pending = False
+        if job.failure_callback
+        {
+            job.failure_callback(error)
+        }
+        else
+        {
+            self.error(error)
+
+        }
+    }
+    def render(self)
+    {
+        self.measurements.clear()
+        self.render_revision += 1
+        revision = self.render_revision
+        snapshot = deepcopy(self.parts)
+        missing = {geometry_key(p): p for p in snapshot if geometry_key(p) not in self.mesh_cache}
+        if missing
+        {
+            self.preview_pending = True
+
+            def build()
+            {
+                return self.cad_worker.request('preview_batch', missing)
+
+            }
+            def ready(meshes)
+            {
+                self.mesh_cache.update(meshes)
+                pinned = {geometry_key(p) for p in self.parts}
+                for key in list(self.mesh_cache)
+                {
+                    memory = sum((v.nbytes + f.nbytes for v, f, _ in self.mesh_cache.values()))
+                    if len(self.mesh_cache) <= 128 and memory <= 512 * 1024 ** 2
+                    {
+                        break
+                    }
+                    if key not in pinned
+                    {
+                        self.mesh_cache.pop(key)
+                    }
+                }
+                if revision == self.render_revision
+                {
+                    self.draw_meshes()
+                }
+            }
+            self.run_job(build, ready, 'Building CAD preview in background…')
+        }
+        else
+        {
+            self.draw_meshes()
+
+        }
+    }
+    def draw_meshes(self)
+    {
+        self.preview_pending = False
+        for item in self.items
+        {
+            self.view.removeItem(item)
+        }
+        self.items = []
+        self.boxes = []
+        self.local_vertices = []
+        self.faces = []
+        transforms = world_matrices(self.parts)
+        for p in self.parts
+        {
+            verts, faces, volume = self.mesh_cache[geometry_key(p)]
+            self.local_vertices.append(verts)
+            self.faces.append(faces)
+            matrix = transforms[p.name]
+            worldverts = verts @ matrix[:3, :3].T + matrix[:3, 3]
+            self.boxes.append((worldverts.min(axis=0), worldverts.max(axis=0)))
+            item = gl.GLMeshItem(vertexes=verts, faces=faces, color=tuple(p.color), smooth=False, drawEdges=False, shader=CAD_SURFACE)
+            item.setTransform(G.QMatrix4x4(*matrix.ravel().tolist()))
+            self.view.addItem(item)
+            self.items.append(item)
+        }
+        if self.parts
+        {
+            p = self.parts[self.selected]
+            self.mass.setText(f'{p.mass or self.mesh_cache[geometry_key(p)][2] * 1e-09 * p.density:.4f} kg')
+        }
+        self.render_gizmo()
+        self.highlight()
+        if not hasattr(self, 'framed_once') or getattr(self, 'needs_frame', False)
+        {
+            self.frame_selection()
+            self.framed_once = True
+            self.needs_frame = False
+        }
+        self.statusBar().showMessage('Ready • CAD and preview caches active')
+
+    }
+    def update_drag(self, drag)
+    {
+        if self.measurements.points
+        {
+            self.measurements.clear()
+        }
+        if len(self.items) != len(self.parts)
+        {
+            return
+        }
+        transforms = world_matrices(self.parts)
+        for i, p in enumerate(self.parts)
+        {
+            verts = self.local_vertices[i]
+            matrix = transforms[p.name].copy()
+            if i == self.selected and self.view.tool in ['Scale', 'Extrude']
+            {
+                ratio = np.array(p.size) / np.array(drag['size'])
+                matrix[:3, :3] = matrix[:3, :3] @ np.diag(ratio)
+            }
+            self.items[i].setTransform(G.QMatrix4x4(*matrix.ravel().tolist()))
+            worldverts = verts @ matrix[:3, :3].T + matrix[:3, 3]
+            self.boxes[i] = (worldverts.min(axis=0), worldverts.max(axis=0))
+        }
+        self.render_gizmo()
+        self.highlight()
+        self.view.update()
+
+    }
+    def join_selected(self)
+    {
+        rows = self.selected_rows()
+        if len(rows) != 2
+        {
+            self.error('Select exactly two parts with Shift-click in the canvas or object list.')
+            return
+        }
+        parent, child = [self.parts[i] for i in rows]
+        dialog = W.QDialog(self)
+        dialog.setWindowTitle('Join two parts')
+        form = W.QFormLayout(dialog)
+        orientation = W.QComboBox()
+        orientation.addItems([f'{parent.name} → {child.name}', f'{child.name} → {parent.name}'])
+        form.addRow('Parent → child', orientation)
+        kind = W.QComboBox()
+        kind.addItems(['Fixed', 'Hinge', 'Slide', 'Ball'])
+        form.addRow('Connection', kind)
+        axis = W.QComboBox()
+        axis.addItems(['X', 'Y', 'Z'])
+        axis.setCurrentText('Y')
+        form.addRow('Motion axis', axis)
+        message = W.QLabel('Parts keep their current positions. Fixed joins form one rigid assembly; hinges and sliders allow motion. Joint pivots can be adjusted in the inspector; the Joint tab shows their anchor and axis in the canvas.')
+        message.setWordWrap(True)
+        form.addRow(message)
+        buttons = W.QDialogButtonBox(W.QDialogButtonBox.Ok | W.QDialogButtonBox.Cancel)
+        buttons.button(W.QDialogButtonBox.Ok).setText('Join parts')
+        form.addRow(buttons)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        if dialog.exec() != W.QDialog.Accepted
+        {
+            return
+        }
+        if orientation.currentIndex()
+        {
+            parent, child = (child, parent)
+        }
+        self.connect_parts(parent.name, child.name, kind.currentText(), axis.currentText())
+
+    }
+    def connect_parts(self, parent_name, child_name, kind='Fixed', axis='Y')
+    {
+        from copy import deepcopy
+        before = deepcopy(self.parts)
+        lookup = {p.name: p for p in self.parts}
+        parent = lookup[parent_name]
+        child = lookup[child_name]
+        child_world = world_matrix(child, self.parts)
+        child.parent = parent.name
+        child.joint = kind
+        child.axis = axis
+        try
+        {
+            set_world_matrix(child, child_world, self.parts)
+        }
+        except Exception as e
+        {
+            self.parts = before
+            self.error(e)
+            return False
+        }
+        if kind == 'Slide'
+        {
+            child.limits = [-50, 50]
+        }
+        try
+        {
+            validate(self.parts)
+        }
+        except Exception as e
+        {
+            self.parts = before
+            self.error(e)
+            return False
+        }
+        self.history.append(before)
+        self.redo_history.clear()
+        self.dirty = True
+        self.selected = self.parts.index(child)
+        self.refresh()
+        self.statusBar().showMessage(f'Joined {child.name} to {parent.name} • {kind}')
+        return True
+
+    }
+    def apply(self)
+    {
+        if not self.parts
+        {
+            return
+        }
+        from copy import deepcopy
+        old = deepcopy(self.parts)
+        self.remember()
+        p = self.parts[self.selected]
+        previous = p.name
+        try
+        {
+            p.name = self.name.text().strip()
+            p.shape = self.shape.currentText()
+            p.size = [s.value() for s in self.size]
+            p.position = [s.value() for s in self.pos]
+            p.pivot = [s.value() for s in self.pivot]
+            p.parent = self.parent.currentData()
+            p.joint = self.joint.currentText()
+            p.axis = self.axis.currentText()
+            p.limits = [self.minimum.value(), self.maximum.value()]
+            p.density = self.density.value()
+            p.torque = self.torque.value()
+            p.fillet = self.fillet.value()
+            p.rotation = [w.value() for w in self.rotation]
+            p.friction = [w.value() for w in self.friction]
+            for name in ['gear', 'kp', 'kv', 'control', 'damping', 'frictionloss', 'armature', 'collision_tolerance']
+            {
+                setattr(p, name, getattr(self, name).value())
+            }
+            p.mass = self.override_mass.value()
+            p.unlimited = self.unlimited.isChecked()
+            p.sensors = self.sensors.isChecked()
+            p.motor = self.motor.currentText()
+            p.collision = self.collision.currentText()
+            for q in self.parts
+            {
+                if q.parent == previous
+                {
+                    q.parent = p.name
+                }
+                if q.closure.get('body') == previous
+                {
+                    q.closure['body'] = p.name
+                }
+            }
+            validate(self.parts)
+            candidate = deepcopy(self.parts)
+            index = self.selected
+            self.parts = old
+
+            def done(mesh)
+            {
+                if self.parts != old
+                {
+                    self.error('Design changed; apply again.')
+                    return
+                }
+                self.parts = candidate
+                self.mesh_cache[geometry_key(candidate[index])] = mesh
+                self.refresh()
+            }
+            changed = deepcopy(p)
+            self.run_job(lambda: self.cad_worker.request('preview', changed), done, 'Applying CAD parameters…')
+        }
+        except Exception as e
+        {
+            self.parts = old
+            self.error(e)
+
+        }
+    }
+    def unique(self, prefix)
+    {
+        n = 1
+        while f'{prefix}_{n}' in [p.name for p in self.parts]
+        {
+            n += 1
+        }
+        return f'{prefix}_{n}'
+
+    }
+    def add_part(self)
+    {
+        self.remember()
+        self.parts.append(Part(self.unique('part'), position=[100, 0, 25]))
+        self.selected = len(self.parts) - 1
+        self.refresh()
+
+    }
+    def add_sketch(self)
+    {
+        if hasattr(self, 'active_sketch') and self.active_sketch is not None
+        {
+            self.stack.setCurrentWidget(self.active_sketch)
+            return
+        }
+        d = SketchDialog(self)
+        d.setWindowFlags(C.Qt.Widget)
+        self.active_sketch = d
+        self.stack.addWidget(d)
+        self.stack.setCurrentWidget(d)
+        d.show()
+
+        def finish()
+        {
+            self.stack.setCurrentWidget(self.view)
+            self.stack.removeWidget(d)
+            self.active_sketch = None
+            d.deleteLater()
+
+        }
+        def accept()
+        {
+            p = Part(self.unique('sketch'), shape='Cylinder' if d.mode.currentText() == 'Circle' else 'Sketch', sketch=list(d.canvas.points), constraints=deepcopy(d.constraints), size=[d.width.value(), d.depth.value(), d.height.value()], position=[100 + len(self.parts) * 30, 0, d.height.value() / 2])
+
+            def done(mesh)
+            {
+                self.remember()
+                self.parts.append(p)
+                self.selected = len(self.parts) - 1
+                self.mesh_cache[geometry_key(p)] = mesh
+                finish()
+                self.refresh()
+            }
+            self.run_job(lambda: self.cad_worker.request('preview', p), done, 'Extruding sketch…')
+        }
+        d.accepted.connect(accept)
+        d.rejected.connect(finish)
+
+    }
+    def duplicate(self)
+    {
+        if not self.parts
+        {
+            return
+        }
+        from copy import deepcopy
+        p = deepcopy(self.parts[self.selected])
+        p.name = self.unique(p.name)
+        p.position[0] += 60
+        self.remember()
+        self.parts.append(p)
+        self.selected = len(self.parts) - 1
+        self.refresh()
+
+    }
+    def object_context_menu(self, pos)
+    {
+        item = self.list.itemAt(pos)
+        if item is None
+        {
+            return
+        }
+        if not item.isSelected()
+        {
+            self.list.setCurrentItem(item)
+        }
+        menu = W.QMenu(self)
+        menu.addAction('Delete selected objects', self.remove)
+        menu.addAction('Duplicate object', self.duplicate)
+        menu.exec(self.list.mapToGlobal(pos))
+
+    }
+    def remove(self)
+    {
+        rows = self.selected_rows()
+        if not rows
+        {
+            return
+        }
+        names = {self.parts[i].name for i in rows}
+        if any((q.name not in names and (q.parent in names or q.closure.get('body') in names) for q in self.parts))
+        {
+            self.error('Select the attached child parts too, or remove their attachments and loop closures before deleting.')
+            return
+        }
+        self.remember()
+        self.parts = [p for p in self.parts if p.name not in names]
+        self.refresh()
+        self.statusBar().showMessage(f'Deleted {len(names)} object(s) • Undo restores them')
+
+    }
+    def color(self)
+    {
+        if not self.parts
+        {
+            return
+        }
+        p = self.parts[self.selected]
+        c = W.QColorDialog.getColor(G.QColor.fromRgbF(*p.color), self)
+        if c.isValid()
+        {
+            self.remember()
+            p.color = [c.redF(), c.greenF(), c.blueF(), 1]
+            self.render()
+
+        }
+    }
+    def new_design(self)
+    {
+        if self.parts and W.QMessageBox.question(self, 'New design', 'Start a blank design? Save your existing design first if you want to keep it.', W.QMessageBox.Ok | W.QMessageBox.Cancel) != W.QMessageBox.Ok
+        {
+            return
+        }
+        self.remember()
+        self.parts = []
+        self.selected = -1
+        self.path = None
+        self.refresh()
+
+    }
+    def save(self)
+    {
+        path, _ = W.QFileDialog.getSaveFileName(self, 'Save design', str(self.path or ROOT / 'MyRobot.mjcad'), 'MuJoCoCAD (*.mjcad)')
+        if path
+        {
+            try
+            {
+                save_project(path, self.parts)
+                self.path = Path(path)
+                self.dirty = False
+                self.statusBar().showMessage(f'Saved {path}')
+            }
+            except Exception as e
+            {
+                self.error(e)
+
+            }
+        }
+    }
+    def open(self)
+    {
+        path, _ = W.QFileDialog.getOpenFileName(self, 'Open design', str(ROOT), 'MuJoCoCAD (*.mjcad)')
+        if path
+        {
+            try
+            {
+                self.parts = load_project(path)
+                self.path = Path(path)
+                self.selected = 0
+                self.history.clear()
+                self.redo_history.clear()
+                self.needs_frame = True
+                self.refresh()
+            }
+            except Exception as e
+            {
+                self.error(e)
+
+            }
+        }
+    }
+    def open_example(self, name)
+    {
+        if self.dirty and W.QMessageBox.question(self, 'Open example', 'Save your current design first if you want to keep it. Open the example?', W.QMessageBox.Ok | W.QMessageBox.Cancel) != W.QMessageBox.Ok
+        {
+            return
+        }
+        try
+        {
+            parts = load_project(ROOT / 'Examples' / f'{name}.mjcad')
+            self.remember()
+            self.parts = parts
+            self.path = None
+            self.selected = 0
+            self.needs_frame = True
+            self.refresh()
+        }
+        except Exception as e
+        {
+            self.error(e)
+
+        }
+    }
+    def boolean_selected(self)
+    {
+        rows = self.selected_rows()
+        if len(rows) != 2
+        {
+            self.error('Select exactly two parts.')
+            return
+        }
+        a, b = [self.parts[i] for i in rows]
+        dialog = W.QDialog(self)
+        dialog.setWindowTitle('Parametric Boolean')
+        form = W.QFormLayout(dialog)
+        order = W.QComboBox()
+        order.addItems([f'{a.name} ← {b.name}', f'{b.name} ← {a.name}'])
+        form.addRow('Target ← tool', order)
+        operation = W.QComboBox()
+        operation.addItems(['Union', 'Cut', 'Intersect'])
+        form.addRow('Operation', operation)
+        buttons = W.QDialogButtonBox(W.QDialogButtonBox.Ok | W.QDialogButtonBox.Cancel)
+        form.addRow(buttons)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        if dialog.exec() != W.QDialog.Accepted
+        {
+            return
+        }
+        if order.currentIndex()
+        {
+            a, b = (b, a)
+        }
+        if b.joint != 'Fixed' or b.closure or any((p.parent == b.name or p.closure.get('body') == b.name for p in self.parts))
+        {
+            self.error('The tool must be a fixed part with no children or loop connections.')
+            return
+        }
+        snapshot = deepcopy(self.parts)
+        target = deepcopy(a)
+        tool = deepcopy(b)
+        op = operation.currentText()
+
+        def done(result)
+        {
+            if self.parts != snapshot
+            {
+                self.error('Design changed during Boolean calculation. Run the operation again.')
+                return
+            }
+            self.remember()
+            self.parts = [result if p.name == target.name else p for p in self.parts if p.name != tool.name]
+            self.selected = next((i for i, p in enumerate(self.parts) if p.name == result.name))
+            self.refresh()
+        }
+        self.run_job(lambda: self.cad_worker.request('boolean', target, tool, snapshot, op), done, 'Calculating Boolean…')
+
+    }
+    def edit_feature(self)
+    {
+        if not self.parts
+        {
+            return
+        }
+        p = self.parts[self.selected]
+        candidate = deepcopy(p)
+        if p.shape == 'Sketch'
+        {
+            dialog = ConstraintEditor(p.sketch, p.constraints, self)
+            if dialog.exec() != W.QDialog.Accepted
+            {
+                return
+            }
+            candidate.sketch = dialog.points
+            candidate.constraints = dialog.constraints
+            candidate.size[:2] = np.ptp(np.asarray(dialog.points), axis=0).tolist()
+        }
+        elif p.shape == 'Boolean'
+        {
+            dialog = BooleanOperands(candidate, self)
+            if dialog.exec() != W.QDialog.Accepted
+            {
+                return
+            }
+            candidate = dialog.part
+        }
+        else
+        {
+            return
+        }
+        original = deepcopy(self.parts)
+        index = self.selected
+
+        def done(result)
+        {
+            rebuilt, mesh = result
+            if self.parts != original
+            {
+                self.error('Design changed; reopen the feature editor.')
+                return
+            }
+            self.remember()
+            self.parts[index] = rebuilt
+            self.mesh_cache[geometry_key(rebuilt)] = mesh
+            self.refresh()
+        }
+        self.run_job(lambda: self.cad_worker.request('rebuild', candidate), done, 'Solving parametric feature…')
+
+    }
+    def add_closure(self)
+    {
+        rows = self.selected_rows()
+        if len(rows) != 2
+        {
+            self.error('Select two parts for a loop closure.')
+            return
+        }
+        a, b = [self.parts[i] for i in rows]
+        dialog = W.QDialog(self)
+        dialog.setWindowTitle('Loop constraint')
+        form = W.QFormLayout(dialog)
+        kind = W.QComboBox()
+        kind.addItems(['Connect', 'Weld'])
+        form.addRow('Constraint', kind)
+        anchor = self.vector(form, f'Anchor in {a.name} coordinates · mm', [-5000, 5000])
+        buttons = W.QDialogButtonBox(W.QDialogButtonBox.Ok | W.QDialogButtonBox.Cancel)
+        form.addRow(buttons)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        if dialog.exec() == W.QDialog.Accepted
+        {
+            self.remember()
+            a.closure = {'body': b.name, 'type': kind.currentText(), 'anchor': [w.value() for w in anchor]}
+            self.refresh()
+
+        }
+    }
+    def clear_closure(self)
+    {
+        if self.parts
+        {
+            self.remember()
+            self.parts[self.selected].closure = {}
+            self.refresh()
+
+        }
+    }
+    def export(self)
+    {
+        path = W.QFileDialog.getExistingDirectory(self, 'Choose export folder', str(ROOT))
+        if path
+        {
+            snapshot = deepcopy(self.parts)
+
+            def done(result)
+            {
+                target, m = result
+                self.statusBar().showMessage(f'Export verified: {m.nbody - 1} bodies, {m.nu} motors → {target}')
+                W.QMessageBox.information(self, 'Export ready', f'Validated MuJoCo model: {target}\nSTEP solids: cad/\nSTL meshes: meshes/')
+            }
+            self.run_job(lambda: self.cad_worker.request('export', path, snapshot), done, 'Exporting CAD and computing collision decomposition…')
+
+        }
+    }
+    def create_training(self)
+    {
+        if not any((p.joint in ['Hinge', 'Slide', 'Ball'] and p.motor != 'None' for p in self.parts))
+        {
+            dialog = W.QMessageBox(self)
+            dialog.setWindowTitle('Add a motor first')
+            dialog.setText('Training needs a moving joint with a motor. Add a Hinge or Slide joint in the Joint tab, or try the motorized arm example.')
+            example = dialog.addButton('Load motorized arm example', W.QMessageBox.AcceptRole)
+            dialog.addButton(W.QMessageBox.Cancel)
+            dialog.exec()
+            if dialog.clickedButton() == example
+            {
+                self.open_example('MotorizedArm')
+                if any((p.joint in ['Hinge', 'Slide', 'Ball'] and p.motor != 'None' for p in self.parts))
+                {
+                    C.QTimer.singleShot(0, self.create_training)
+                }
+            }
+            return
+        }
+        try
+        {
+            validate(self.parts)
+        }
+        except Exception as e
+        {
+            self.error(e)
+            return
+        }
+        wizard = TrainingWizard(self.parts, self)
+        if wizard.exec() != W.QDialog.Accepted
+        {
+            return
+        }
+        config = wizard.configuration()
+        folder = job_folder()
+        snapshot = deepcopy(self.parts)
+        panel = TrainingPanel(folder, config, self)
+        self.training_panels.append(panel)
+        panel.show()
+
+        def ready(result)
+        {
+            (folder / 'task.json').write_text(json.dumps(config, indent=2))
+            shutil.copyfile(ROOT / 'robot_training.py', folder / 'robot_training.py')
+            shutil.copyfile(ROOT / 'requirements-training.txt', folder / 'requirements.txt')
+            (folder / 'TRAINING.txt').write_text('This folder is an immutable robot and goal snapshot. Train with the CAD Training panel. policy.zip stores the learned policy; results.json stores evaluation results. Changing the live CAD design does not change this run.\n')
+            panel.start()
+            self.statusBar().showMessage('Training started in background • Training menu opens progress')
+        }
+        self.run_job(lambda: self.cad_worker.request('export', folder, snapshot), ready, 'Preparing the training robot…', on_error=panel.fail)
+
+    }
+    def show_training(self)
+    {
+        if self.training_panels
+        {
+            self.training_panels[-1].show()
+            self.training_panels[-1].raise_()
+        }
+        else
+        {
+            self.open_training()
+
+        }
+    }
+    def open_training(self)
+    {
+        library = TrainingLibrary(self)
+        if library.exec() != W.QDialog.Accepted or not library.path
+        {
+            return
+        }
+        path = library.path
+        try
+        {
+            path = Path(path)
+            for panel in self.training_panels
+            {
+                if panel.folder == path.parent
+                {
+                    panel.show()
+                    panel.raise_()
+                    return
+                }
+            }
+            config = json.loads(path.read_text())
+            panel = TrainingPanel(path.parent, config, self)
+            self.training_panels.append(panel)
+            saved = (path.parent / 'policy.zip').exists()
+            panel.resume.setEnabled(saved)
+            panel.watch.setEnabled(saved)
+            panel.state.setText('Saved training task. Continue training or watch the policy.' if saved else 'Prepared task. Click Start training.')
+            if not saved
+            {
+                panel.resume.setText('Start training')
+                panel.resume.setEnabled(True)
+                panel.resume.clicked.disconnect()
+                panel.resume.clicked.connect(lambda: panel.start(False))
+            }
+            result = path.parent / 'results.json'
+            if result.exists()
+            {
+                panel.handle_event({'event': 'finished', **json.loads(result.read_text())})
+            }
+            panel.show()
+        }
+        except Exception as e
+        {
+            self.error(e)
+
+        }
+    }
+    def assembly_root(self, part)
+    {
+        lookup = {p.name: p for p in self.parts}
+        seen = set()
+        while part.parent and part.name not in seen
+        {
+            seen.add(part.name)
+            part = lookup[part.parent]
+        }
+        return part
+
+    }
+    def set_assembly_floating(self, floating)
+    {
+        if not self.parts
+        {
+            return
+        }
+        root = self.assembly_root(self.parts[self.selected])
+        if root.joint not in ['Fixed', 'Free']
+        {
+            self.error('The root has a ' + root.joint + ' constraint. Change its Connection in the Joint tab to replace that constraint.')
+            return
+        }
+        target = 'Free' if floating else 'Fixed'
+        if root.joint == target
+        {
+            return
+        }
+        self.remember()
+        root.joint = target
+        self.refresh()
+        self.statusBar().showMessage(root.name + (' released • click Simulate to run gravity and ground contact' if floating else ' anchored to world'))
+
+    }
+    def simulate(self)
+    {
+        if not self.parts
+        {
+            return
+        }
+        if all((p.joint == 'Fixed' for p in self.parts))
+        {
+            dialog = W.QMessageBox(self)
+            dialog.setWindowTitle('These parts are anchored')
+            dialog.setText('Every part is Fixed, so nothing can fall or move. Gravity and ground contact are enabled in simulation.')
+            dialog.setInformativeText('Let parts fall releases each assembly root. Joined parts stay connected. The CAD canvas remains an editing preview.')
+            release = dialog.addButton('Let parts fall & simulate', W.QMessageBox.AcceptRole)
+            anchored = dialog.addButton('Simulate anchored', W.QMessageBox.ActionRole)
+            dialog.addButton(W.QMessageBox.Cancel)
+            dialog.exec()
+            if dialog.clickedButton() == release
+            {
+                self.remember()
+                for p in self.parts
+                {
+                    if not p.parent
+                    {
+                        p.joint = 'Free'
+                    }
+                }
+                self.refresh()
+            }
+            elif dialog.clickedButton() != anchored
+            {
+                return
+            }
+        }
+        snapshot = deepcopy(self.parts)
+
+        def done(result)
+        {
+            target, m = result
+            env = os.environ.copy()
+            env['PATH'] = '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin:' + env.get('PATH', '')
+            subprocess.Popen([str(ROOT / '.venv/bin/mjpython'), str(ROOT / 'simulate.py'), str(target)], env=env)
+            self.statusBar().showMessage('MuJoCo viewer launched • motor controls in right panel')
+        }
+        self.run_job(lambda: self.cad_worker.request('export', ROOT / 'simulation', snapshot), done, 'Preparing robot simulation…')
+    }
+}
+if __name__ == '__main__'
+{
+    app = W.QApplication(sys.argv)
+    app.setApplicationName('MuJoCoCAD')
+    app.setOrganizationName('MuJoCoCAD')
+    app.setStyle('Fusion')
+    app.setStyleSheet(STYLE)
+    window = Window()
+    window.show()
+    sys.exit(app.exec())
+}

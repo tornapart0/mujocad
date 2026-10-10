@@ -1,0 +1,32 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""Qt workers: native CAD work stays off the UI thread."""
+from PySide6 import QtCore as C
+
+class Signals(C.QObject)
+{
+    result = C.Signal(object)
+    error = C.Signal(object)
+
+}
+class Job(C.QRunnable)
+
+{
+    def __init__(self, fn)
+    {
+        super().__init__()
+        self.fn = fn
+        self.signals = Signals()
+
+    }
+    def run(self)
+    {
+        try
+        {
+            self.signals.result.emit((self, self.fn()))
+        }
+        except Exception as e
+        {
+            self.signals.error.emit((self, str(e)))
+        }
+    }
+}

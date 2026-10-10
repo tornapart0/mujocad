@@ -1,0 +1,86 @@
+[
+  {
+    "test": "test_backend",
+    "returncode": 0,
+    "seconds": 5.14,
+    "output": "Union volume 26000.000000000007\nCut volume 19999.999999999993\nIntersect volume 3999.999999999999\nPosition motor settles: [0.52397456] mass [0.     0.48   0.0875]\nFloating robot: 8 1 6\nCut collision pieces: 4 export seconds 0.4996209999990242\nPreview cold 0.19622633399922051 cached 2.936459000920877e-06 speedup 66824.1354426143 {'solid': {'hits': 22, 'misses': 13, 'maxsize': 128, 'currsize': 13}, 'mesh': {'hits': 1000, 'misses': 7, 'maxsize': 128, 'currsize': 7}}\nPASS\n"
+  },
+  {
+    "test": "test_constraints_contacts",
+    "returncode": 0,
+    "seconds": 3.65,
+    "output": "PASS fully constrained rectangle, conflict rejection, self intersection rejection, collision cut-out, ball motors, slider velocity motor, connect/weld loop constraints\n"
+  },
+  {
+    "test": "test_editor",
+    "returncode": 0,
+    "seconds": 7.0,
+    "output": "PASS native OpenGL, rotated exact picking, Shift selection, join world-pose preservation, motor inspector, asynchronous Apply and sketch extrusion, undo/redo\n"
+  },
+  {
+    "test": "test_navigation",
+    "returncode": 0,
+    "seconds": 5.31,
+    "output": "PASS native pinch in/out, cursor anchored zoom, trackpad pan, mouse-wheel zoom, camera controls\n"
+  },
+  {
+    "test": "test_booleans",
+    "returncode": 0,
+    "seconds": 9.51,
+    "output": "PASS Boolean Cut dialog, operand parametric edit, CAD volume changes, undo operand edit and original Boolean\n"
+  },
+  {
+    "test": "test_gravity",
+    "returncode": 0,
+    "seconds": 9.37,
+    "output": "PASS gravity acceleration, stable floor contact, rigid child join, release/anchor UI, undo\n"
+  },
+  {
+    "test": "test_measurements",
+    "returncode": 0,
+    "seconds": 5.69,
+    "output": "PASS readable grid, spacing, local/world dimensions, multi-part bounds, surface distance, vertex snap, angle, center distance, stale measurement clearing\n"
+  },
+  {
+    "test": "test_delete_training_guard",
+    "returncode": 0,
+    "seconds": 6.06,
+    "output": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/MuJoCoCAD-Sensible/tests/test_delete_training_guard.py:55: DeprecationWarning: Function: 'QApplication.setActiveWindow(QWidget *act)' is marked as deprecated, please check the documentation for more information.\n  app . setActiveWindow ( w )\n/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/MuJoCoCAD-Sensible/tests/test_delete_training_guard.py:63: DeprecationWarning: Function: 'QApplication.setActiveWindow(QWidget *act)' is marked as deprecated, please check the documentation for more information.\n  app . setActiveWindow ( w )\nPASS stationary-tip reach guard, pose alternative, moving-axis reach, delete button/shortcuts, child attachment protection, multi-delete, undo, text-edit safety, training-budget label\n"
+  },
+  {
+    "test": "test_rotate_clipboard_hole",
+    "returncode": 0,
+    "seconds": 5.91,
+    "output": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/MuJoCoCAD-Sensible/tests/test_rotate_clipboard_hole.py:33: DeprecationWarning: Function: 'QApplication.setActiveWindow(QWidget *act)' is marked as deprecated, please check the documentation for more information.\n  app . setActiveWindow ( w )\nPASS clipboard hierarchy/world poses/motor settings, independent child paste, 90-degree ring drag, rotation undo, rotated through-hole volume/pose, hole undo and miss rejection\n"
+  },
+  {
+    "test": "test_training_ui",
+    "returncode": 0,
+    "seconds": 5.17,
+    "output": "PASS training wizard navigation, pose defaults, motor selection, reachable suggestion, fixed-part rejection\n"
+  },
+  {
+    "test": "test_saved_training",
+    "returncode": 0,
+    "seconds": 5.69,
+    "output": "PASS first-run motorized-example onboarding and named saved-run library with policy replay/resume\n"
+  },
+  {
+    "test": "test_responsiveness",
+    "returncode": 0,
+    "seconds": 7.92,
+    "output": "PASS background CAD: 2.86s, 178 UI timer ticks, longest gap 17.1ms\n"
+  },
+  {
+    "test": "test_training_integration",
+    "returncode": 0,
+    "seconds": 14.46,
+    "output": "PASS editor wizard export \u2192 PPO subprocess \u2192 save/evaluate \u2192 resume \u2192 graceful Stop & Save\n"
+  },
+  {
+    "test": "test_policy_viewer",
+    "returncode": 0,
+    "seconds": 8.35,
+    "output": "PASS learned-policy MuJoCo viewer, looping episodes and target marker\n"
+  }
+]

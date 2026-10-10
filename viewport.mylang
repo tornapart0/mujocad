@@ -1,0 +1,558 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""Direct object picking and axis-constrained manipulation for the CAD viewport."""
+import numpy as np
+from PySide6 import QtCore as C, QtGui as G
+import pyqtgraph.opengl as gl
+from model import world_position, world_matrix, set_world_matrix
+from scipy.spatial.transform import Rotation
+
+class Viewport(gl.GLViewWidget)
+
+{
+    def __init__(self, editor)
+    {
+        super().__init__()
+        self.editor = editor
+        self.tool = 'Select'
+        self.drag = None
+        self.setFocusPolicy(C.Qt.StrongFocus)
+        self.setBackgroundColor('#213c31')
+        self.opts.update(distance=650, center=G.QVector3D(0, 0, 140))
+
+    }
+    def plane_point(self, pos, normal, center)
+    {
+        ray = self.ray(pos)
+        if ray is None
+        {
+            return None
+        }
+        origin, direction = ray
+        denominator = np.dot(direction, normal)
+        if abs(denominator) < 1e-10
+        {
+            return None
+        }
+        return origin + direction * np.dot(center - origin, normal) / denominator
+
+    }
+    def zoom(self, factor, pos=None)
+    {
+        if not np.isfinite(factor) or factor <= 0
+        {
+            return
+        }
+        pos = pos or C.QPointF(self.width() / 2, self.height() / 2)
+        center = np.array(self.opts['center'].toTuple())
+        ray = self.ray(C.QPointF(self.width() / 2, self.height() / 2))
+        normal = ray[1] / np.linalg.norm(ray[1]) if ray else np.array([0.0, 0.0, 1.0])
+        before = self.plane_point(pos, normal, center)
+        self.opts['distance'] = float(np.clip(self.opts['distance'] / factor, 2.0, 200000.0))
+        after = self.plane_point(pos, normal, center)
+        if before is not None and after is not None
+        {
+            self.opts['center'] = G.QVector3D(*center + before - after)
+        }
+        self.update()
+
+    }
+    def event(self, event)
+    {
+        if event.type() == C.QEvent.NativeGesture
+        {
+            kind = event.gestureType()
+            if kind == C.Qt.ZoomNativeGesture
+            {
+                self.pinching = True
+                self.zoom(max(0.01, 1.0 + event.value()), event.position())
+            }
+            elif kind == C.Qt.EndNativeGesture
+            {
+                self.pinching = False
+            }
+            elif kind == C.Qt.SmartZoomNativeGesture
+            {
+                self.editor.frame_selection()
+            }
+            elif kind == C.Qt.RotateNativeGesture
+            {
+                self.orbit(-event.value(), 0)
+            }
+            elif kind == C.Qt.BeginNativeGesture
+            {
+                pass
+            }
+            else
+            {
+                return super().event(event)
+            }
+            event.accept()
+            return True
+        }
+        return super().event(event)
+
+    }
+    def wheelEvent(self, event)
+    {
+        pixels = event.pixelDelta()
+        if getattr(self, 'pinching', False)
+        {
+            event.accept()
+            return
+        }
+        if not pixels.isNull() or (event.device().type() == G.QInputDevice.DeviceType.TouchPad and event.phase() != C.Qt.NoScrollPhase)
+        {
+            self.pan(pixels.x(), pixels.y(), 0, relative='view')
+        }
+        else
+        {
+            self.zoom(float(np.exp(event.angleDelta().y() * 0.0015)), event.position())
+        }
+        event.accept()
+
+    }
+    def projection_array(self)
+    {
+        region = (0, 0, self.width(), self.height())
+        projection = np.array(self.projectionMatrix(region, region).copyDataTo()).reshape(4, 4)
+        view = np.array(self.viewMatrix().copyDataTo()).reshape(4, 4)
+        return projection @ view
+
+    }
+    def screen(self, xyz)
+    {
+        p = self.projection_array() @ np.array([*xyz, 1.0], dtype=float)
+        if abs(p[3]) < 1e-08
+        {
+            return None
+        }
+        return np.array([(p[0] / p[3] + 1) * self.width() / 2, (1 - p[1] / p[3]) * self.height() / 2])
+
+    }
+    def ray(self, pos)
+    {
+        try
+        {
+            inv = np.linalg.inv(self.projection_array())
+        }
+        except np.linalg.LinAlgError
+        {
+            return None
+        }
+        x = 2 * pos.x() / self.width() - 1
+        y = 1 - 2 * pos.y() / self.height()
+        values = []
+        for z in [-1, 1]
+        {
+            v = inv @ np.array([x, y, z, 1.0])
+            values.append(v[:3] / v[3])
+        }
+        return (values[0], values[1] - values[0])
+
+    }
+    def pick_hit(self, pos)
+    {
+        ray = self.ray(pos)
+        if ray is None
+        {
+            return None
+        }
+        origin, direction = ray
+        direction = direction / np.linalg.norm(direction)
+        hits = []
+        for i, box in enumerate(self.editor.boxes)
+        {
+            lo, hi = box
+            near = -np.inf
+            far = np.inf
+            valid = True
+            for a in range(3)
+            {
+                if abs(direction[a]) < 1e-12
+                {
+                    if origin[a] < lo[a] or origin[a] > hi[a]
+                    {
+                        valid = False
+                        break
+                    }
+                }
+                else
+                {
+                    t1 = (lo[a] - origin[a]) / direction[a]
+                    t2 = (hi[a] - origin[a]) / direction[a]
+                    near = max(near, min(t1, t2))
+                    far = min(far, max(t1, t2))
+                }
+            }
+            if valid and far >= max(near, 0)
+            {
+                matrix = world_matrix(self.editor.parts[i], self.editor.parts)
+                vertices = self.editor.local_vertices[i] @ matrix[:3, :3].T + matrix[:3, 3]
+                triangles = vertices[self.editor.faces[i]]
+                v0 = triangles[:, 0]
+                e1 = triangles[:, 1] - v0
+                e2 = triangles[:, 2] - v0
+                cross = np.cross(np.broadcast_to(direction, e2.shape), e2)
+                det = np.einsum('ij,ij->i', e1, cross)
+                mask = np.abs(det) > 1e-10
+                inv = np.zeros_like(det)
+                inv[mask] = 1 / det[mask]
+                offset = origin - v0
+                u = np.einsum('ij,ij->i', offset, cross) * inv
+                q = np.cross(offset, e1)
+                v = np.einsum('ij,j->i', q, direction) * inv
+                t = np.einsum('ij,ij->i', e2, q) * inv
+                accepted = mask & (u >= 0) & (v >= 0) & (u + v <= 1) & (t >= 0)
+                if np.any(accepted)
+                {
+                    triangle = int(np.flatnonzero(accepted)[np.argmin(t[accepted])])
+                    distance = float(t[triangle])
+                    hits.append((distance, i, origin + direction * distance, triangles[triangle]))
+                }
+            }
+        }
+        return min(hits, key=lambda hit: hit[0]) if hits else None
+
+    }
+    def pick(self, pos)
+    {
+        hit = self.pick_hit(pos)
+        return hit[1] if hit else None
+
+    }
+    def measurement_point(self, pos)
+    {
+        hit = self.pick_hit(pos)
+        if hit is None
+        {
+            return None
+        }
+        point = hit[2]
+        if self.editor.measurements.snap.isChecked()
+        {
+            nearby = []
+            for vertex in hit[3]
+            {
+                screen = self.screen(vertex)
+                if screen is not None
+                {
+                    distance = np.linalg.norm(screen - np.array([pos.x(), pos.y()]))
+                    if distance <= 12
+                    {
+                        nearby.append((distance, vertex))
+                    }
+                }
+            }
+            if nearby
+            {
+                point = min(nearby, key=lambda item: item[0])[1]
+            }
+        }
+        return point
+
+    }
+    def mousePressEvent(self, event)
+    {
+        if event.button() != C.Qt.LeftButton or event.modifiers() & C.Qt.AltModifier
+        {
+            super().mousePressEvent(event)
+            return
+        }
+        if self.tool in ['Orbit', 'Pan']
+        {
+            super().mousePressEvent(event)
+            return
+        }
+        editor = self.editor
+        if getattr(editor, 'preview_pending', False)
+        {
+            event.accept()
+            return
+        }
+        if self.tool == 'Measure'
+        {
+            point = self.measurement_point(event.position())
+            if point is not None
+            {
+                editor.measurements.add_point(point)
+            }
+            else
+            {
+                editor.statusBar().showMessage('Pick a point on a visible solid surface.')
+            }
+            event.accept()
+            return
+        }
+        if self.tool == 'Rotate' and editor.parts
+        {
+            pointer = np.array([event.position().x(), event.position().y()])
+            candidates = []
+            for axis in range(3)
+            {
+                screen = [self.screen(point) for point in editor.rotation_ring(axis)]
+                for start, end in zip(screen[:-1], screen[1:])
+                {
+                    if start is None or end is None
+                    {
+                        continue
+                    }
+                    v = end - start
+                    u = np.clip(np.dot(pointer - start, v) / max(np.dot(v, v), 1e-08), 0, 1)
+                    distance = np.linalg.norm(pointer - start - u * v)
+                    if distance < 10
+                    {
+                        candidates.append((distance, axis))
+                    }
+                }
+            }
+            center = np.array(world_position(editor.parts[editor.selected], editor.parts))
+            for _, axis in sorted(candidates)
+            {
+                point = self.plane_point(event.position(), np.eye(3)[axis], center)
+                if point is None or np.linalg.norm(point - center) < 1e-06
+                {
+                    continue
+                }
+                ray = self.ray(event.position())
+                if ray is None or abs(np.dot(ray[1] / np.linalg.norm(ray[1]), np.eye(3)[axis])) < 0.05
+                {
+                    continue
+                }
+                editor.remember()
+                self.drag = {'rotation': True, 'axis': axis, 'center': center, 'start': point - center, 'world': world_matrix(editor.parts[editor.selected], editor.parts).copy()}
+                self.setCursor(C.Qt.ClosedHandCursor)
+                event.accept()
+                return
+            }
+        }
+        if self.tool in ['Move', 'Scale', 'Extrude'] and editor.parts
+        {
+            p = editor.parts[editor.selected]
+            center = np.array(world_position(p, editor.parts))
+            pointer = np.array([event.position().x(), event.position().y()])
+            nearest = []
+            for a in range(3)
+            {
+                axis = editor.gizmo_axis(p, a) * editor.gizmo_length
+                start = self.screen(center)
+                end = self.screen(center + axis)
+                if start is None or end is None
+                {
+                    continue
+                }
+                v = end - start
+                u = np.clip(np.dot(pointer - start, v) / max(np.dot(v, v), 1), 0, 1)
+                distance = np.linalg.norm(pointer - (start + u * v))
+                if distance < 12 and u > 0.12
+                {
+                    nearest.append((distance, a, v / editor.gizmo_length))
+                }
+            }
+            if self.tool == 'Extrude'
+            {
+                a = 2
+                axis = editor.gizmo_axis(p, a) * editor.gizmo_length
+                start = self.screen(center)
+                end = self.screen(center + axis)
+                if start is not None and end is not None
+                {
+                    nearest = [(0, a, (end - start) / editor.gizmo_length)]
+                }
+            }
+            if nearest and self.tool != 'Move' and (p.shape == 'Boolean' or p.constraints)
+            {
+                editor.error('Edit Boolean operands or sketch constraints to resize this parametric feature.')
+                return
+            }
+            if nearest
+            {
+                _, axis, screen_axis = min(nearest, key=lambda x: x[0])
+                editor.remember()
+                self.drag = {'pointer': pointer, 'axis': axis, 'screen_axis': screen_axis, 'position': list(p.position), 'size': list(p.size)}
+                self.setCursor(C.Qt.ClosedHandCursor)
+                event.accept()
+                return
+            }
+        }
+        selected = self.pick(event.position())
+        if selected is not None
+        {
+            if event.modifiers() & C.Qt.ShiftModifier
+            {
+                item = editor.list.item(selected)
+                item.setSelected(not item.isSelected())
+                editor.select(selected)
+            }
+            else
+            {
+                editor.list.setCurrentRow(selected)
+            }
+            event.accept()
+            return
+        }
+        if self.tool == 'Select'
+        {
+            editor.list.clearSelection()
+            event.accept()
+            return
+        }
+        super().mousePressEvent(event)
+
+    }
+    def mouseMoveEvent(self, event)
+    {
+        if not self.drag
+        {
+            if self.tool == 'Pan' and event.buttons() & C.Qt.LeftButton
+            {
+                previous = getattr(self, 'mousePos', event.position())
+                delta = event.position() - previous
+                self.mousePos = event.position()
+                self.pan(delta.x(), delta.y(), 0, relative='view')
+                event.accept()
+                return
+            }
+            super().mouseMoveEvent(event)
+            return
+        }
+        d = self.drag
+        p = self.editor.parts[self.editor.selected]
+        if d.get('rotation')
+        {
+            axis = np.eye(3)[d['axis']]
+            point = self.plane_point(event.position(), axis, d['center'])
+            if point is None
+            {
+                return
+            }
+            vector = point - d['center']
+            start = d['start']
+            angle = np.arctan2(np.dot(axis, np.cross(start, vector)), np.dot(start, vector))
+            if event.modifiers() & C.Qt.ShiftModifier
+            {
+                angle = np.radians(round(np.degrees(angle) / 15) * 15)
+            }
+            matrix = d['world'].copy()
+            matrix[:3, :3] = Rotation.from_rotvec(axis * angle).as_matrix() @ matrix[:3, :3]
+            set_world_matrix(p, matrix, self.editor.parts)
+            self.editor.dirty = True
+            self.editor.update_drag(d)
+            self.editor.statusBar().showMessage(f'Rotation: {np.degrees(angle):.1f}° · Shift snaps to 15°')
+            event.accept()
+            return
+        }
+        v = d['screen_axis']
+        pixel = np.array([event.position().x(), event.position().y()]) - d['pointer']
+        delta = float(np.dot(pixel, v) / max(np.dot(v, v), 0.001))
+        if event.modifiers() & C.Qt.ShiftModifier
+        {
+            delta = round(delta / 5) * 5
+        }
+        a = d['axis']
+        if self.tool == 'Move'
+        {
+            worlddelta = np.eye(3)[a] * delta
+            parent = next((q for q in self.editor.parts if q.name == p.parent), None)
+            localdelta = world_matrix(parent, self.editor.parts)[:3, :3].T @ worlddelta if parent else worlddelta
+            p.position = (np.array(d['position']) + localdelta).tolist()
+        }
+        else
+        {
+            p.size = list(d['size'])
+            p.size[a] = max(1, p.size[a] + delta)
+            if p.shape == 'Cylinder' and a in [0, 1]
+            {
+                p.size[0] = p.size[1] = p.size[a]
+            }
+            if p.shape == 'Sphere'
+            {
+                p.size = [p.size[a]] * 3
+            }
+        }
+        self.editor.dirty = True
+        self.editor.update_drag(d)
+        event.accept()
+
+    }
+    def mouseReleaseEvent(self, event)
+    {
+        if self.drag
+        {
+            self.drag = None
+            self.unsetCursor()
+            self.editor.refresh()
+            event.accept()
+            return
+        }
+        super().mouseReleaseEvent(event)
+
+    }
+    def paintEvent(self, event)
+    {
+        try
+        {
+            self.draw_frame(event)
+        }
+        except Exception
+        {
+            import traceback
+            traceback.print_exc()
+
+        }
+    }
+    def draw_frame(self, event)
+    {
+        super().paintEvent(event)
+        painter = G.QPainter(self)
+        painter.setRenderHint(G.QPainter.Antialiasing)
+        painter.setPen(G.QColor('#bac7a7'))
+        painter.drawText(18, self.height() - 20, 'Pinch: zoom    ·    Two-finger scroll: pan    ·    Orbit tool: rotate    ·    Double-tap: fit')
+        if self.editor.parts
+        {
+            p = self.editor.parts[self.editor.selected]
+            painter.setPen(G.QColor('#f2e8cc'))
+            painter.drawText(18, 30, f'{p.name}  /  {self.tool}')
+            for i in self.editor.selected_rows()
+            {
+                if i >= len(self.editor.parts)
+                {
+                    continue
+                }
+                selected = self.editor.parts[i]
+                point = self.screen(world_position(selected, self.editor.parts))
+                if point is not None
+                {
+                    text = selected.name
+                    box = C.QRectF(point[0] + 12, point[1] - 27, len(text) * 8 + 16, 24)
+                    painter.fillRect(box, G.QColor('#f0dfb3'))
+                    painter.setPen(G.QColor('#294732'))
+                    painter.drawText(box, C.Qt.AlignCenter, text)
+                }
+            }
+            if self.tool in ['Move', 'Scale', 'Extrude']
+            {
+                center = np.array(world_position(p, self.editor.parts))
+                for a, color in enumerate(['#ef6976', '#78c78c', '#65a6ef'])
+                {
+                    xyz = center + self.editor.gizmo_axis(p, a) * self.editor.gizmo_length
+                    point = self.screen(xyz)
+                    if point is not None
+                    {
+                        painter.setPen(G.QColor(color))
+                        painter.drawText(int(point[0]) + 7, int(point[1]) - 7, 'XYZ'[a])
+                    }
+                }
+            }
+        }
+        for index, point in enumerate(self.editor.measurements.points)
+        {
+            screen = self.screen(point)
+            if screen is not None
+            {
+                painter.setPen(G.QColor('#fff0be'))
+                painter.drawText(int(screen[0]) + 10, int(screen[1]) - 10, 'ABC'[index])
+            }
+        }
+        painter.end()
+    }
+}

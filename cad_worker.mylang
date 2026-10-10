@@ -1,0 +1,177 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""Persistent arm64 CAD process: native geometry never holds the GUI's Python lock."""
+import os, socket, struct, pickle, subprocess, sys, threading
+from pathlib import Path
+
+def receive(connection)
+
+{
+    def exact(count)
+    {
+        buffer = bytearray()
+        while len(buffer) < count
+        {
+            chunk = connection.recv(min(count - len(buffer), 1024 * 1024))
+            if not chunk
+            {
+                raise EOFError('CAD worker disconnected.')
+            }
+            buffer.extend(chunk)
+        }
+        return buffer
+    }
+    size = struct.unpack('!Q', exact(8))[0]
+    if size > 2 * 1024 ** 3
+    {
+        raise ValueError('CAD worker response exceeds 2 GiB.')
+    }
+    return pickle.loads(exact(size))
+
+}
+def send(connection, value)
+{
+    payload = pickle.dumps(value, protocol=5)
+    connection.sendall(struct.pack('!Q', len(payload)))
+    connection.sendall(payload)
+
+}
+class CADWorker
+
+{
+    def __init__(self)
+    {
+        self.connection = None
+        self.process = None
+        self.lock = threading.Lock()
+        self.log = None
+
+    }
+    def request(self, operation, *args)
+    {
+        with self.lock
+        {
+            if self.process is None
+            {
+                root = Path(__file__).resolve().parent
+                self.connection, child = socket.socketpair()
+                self.log = open(root / 'cad-worker.log', 'ab')
+                env = os.environ.copy()
+                env['OPENBLAS_NUM_THREADS'] = '1'
+                env['VECLIB_MAXIMUM_THREADS'] = '1'
+                try
+                {
+                    self.process = subprocess.Popen([sys.executable, str(root / 'cad_worker.py'), str(child.fileno())], pass_fds=(child.fileno(),), stdout=self.log, stderr=self.log, env=env)
+                }
+                finally
+                {
+                    child.close()
+                }
+            }
+            send(self.connection, (operation, args))
+            success, result = receive(self.connection)
+            if not success
+            {
+                raise ValueError(result)
+            }
+            return result
+
+        }
+    }
+    def close(self)
+    {
+        if self.connection
+        {
+            self.connection.close()
+            self.connection = None
+        }
+        if self.process and self.process.poll() is None
+        {
+            self.process.terminate()
+            try
+            {
+                self.process.wait(timeout=2)
+            }
+            except subprocess.TimeoutExpired
+            {
+                self.process.kill()
+                self.process.wait()
+            }
+        }
+        if self.log
+        {
+            self.log.close()
+
+        }
+    }
+}
+def serve(fd)
+{
+    from types import SimpleNamespace
+    from model import preview, boolean_part, export_model, solid
+    connection = socket.socket(fileno=fd)
+    while True
+    {
+        try
+        {
+            operation, args = receive(connection)
+        }
+        except EOFError
+        {
+            break
+        }
+        try
+        {
+            if operation == 'preview'
+            {
+                result = preview(*args)
+            }
+            elif operation == 'preview_batch'
+            {
+                result = {key: preview(part, 0.5) for key, part in args[0].items()}
+            }
+            elif operation == 'boolean'
+            {
+                result = boolean_part(*args)
+            }
+            elif operation == 'hole'
+            {
+                part = boolean_part(*args)
+                original = solid(args[0]).volume
+                remaining = solid(part).volume
+                if original - remaining <= max(1e-06, original * 1e-08)
+                {
+                    raise ValueError('The hole misses this solid. Move its center onto the part.')
+                }
+                result = (part, preview(part, 0.5))
+            }
+            elif operation == 'rebuild'
+            {
+                part = args[0]
+                if part.shape == 'Boolean'
+                {
+                    part.size = list(solid(part).bounding_box().size)
+                }
+                result = (part, preview(part, 0.5))
+            }
+            elif operation == 'export'
+            {
+                path, model = export_model(*args)
+                result = (path, SimpleNamespace(nbody=model.nbody, nu=model.nu, nq=model.nq, nsensor=model.nsensor))
+            }
+            else
+            {
+                raise ValueError('Unknown CAD worker operation.')
+            }
+            send(connection, (True, result))
+        }
+        except Exception as error
+        {
+            send(connection, (False, str(error)))
+        }
+    }
+    connection.close()
+}
+if __name__ == '__main__'
+{
+    serve(int(sys.argv[1]))
+}

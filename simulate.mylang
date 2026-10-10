@@ -1,0 +1,33 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import sys, time, json
+from pathlib import Path
+import mujoco
+import mujoco.viewer
+path = Path(sys.argv[1])
+model = mujoco.MjModel.from_xml_path(str(path))
+data = mujoco.MjData(model)
+controls_path = path.with_name('controls.json')
+if controls_path.exists()
+{
+    for control in json.loads(controls_path.read_text())
+    {
+        index = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, control['name'])
+        if index >= 0
+        {
+            data.ctrl[index] = control['initial']
+        }
+    }
+}
+mujoco.mj_forward(model, data)
+with mujoco.viewer.launch_passive(model, data) as viewer
+{
+    viewer.opt.geomgroup[3] = 0
+    print('MuJoCoCAD simulation: motor controls in the right panel. Position targets are radians/meters; velocity targets rad/s or m/s.', flush=True)
+    while viewer.is_running()
+    {
+        start = time.monotonic()
+        mujoco.mj_step(model, data)
+        viewer.sync()
+        time.sleep(max(0, model.opt.timestep - (time.monotonic() - start)))
+    }
+}

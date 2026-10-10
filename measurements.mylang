@@ -1,0 +1,172 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""Read-only dimensions and viewport distance/angle measurements in millimeters."""
+import numpy as np
+from PySide6 import QtWidgets as W, QtCore as C
+import pyqtgraph.opengl as gl
+from model import geometry_key
+
+class MeasurementPanel(W.QGroupBox)
+
+{
+    def __init__(self, editor)
+    {
+        super().__init__('MEASUREMENTS')
+        self.editor = editor
+        self.points = []
+        self.overlays = []
+        layout = W.QVBoxLayout(self)
+        layout.setSpacing(5)
+        self.dimensions = W.QLabel('Select a part to see its size.')
+        self.dimensions.setWordWrap(True)
+        self.dimensions.setTextInteractionFlags(C.Qt.TextSelectableByMouse)
+        layout.addWidget(self.dimensions)
+        row = W.QHBoxLayout()
+        self.mode = W.QComboBox()
+        self.mode.addItems(['Distance · 2 points', 'Angle · 3 points'])
+        row.addWidget(self.mode)
+        measure = W.QPushButton('Measure')
+        measure.clicked.connect(lambda: editor.set_tool('Measure'))
+        row.addWidget(measure)
+        layout.addLayout(row)
+        self.snap = W.QCheckBox('Snap to nearby mesh vertices')
+        self.snap.setChecked(True)
+        layout.addWidget(self.snap)
+        self.result = W.QLabel('Click Measure, then pick points on a solid.')
+        self.result.setWordWrap(True)
+        self.result.setTextInteractionFlags(C.Qt.TextSelectableByMouse)
+        layout.addWidget(self.result)
+        row = W.QHBoxLayout()
+        centers = W.QPushButton('Part centers')
+        centers.setToolTip('Select two parts to measure between their world bounding-box centers; this is not the minimum surface gap.')
+        centers.clicked.connect(self.measure_centers)
+        row.addWidget(centers)
+        clear = W.QPushButton('Clear')
+        clear.clicked.connect(self.clear)
+        row.addWidget(clear)
+        layout.addLayout(row)
+        self.mode.currentIndexChanged.connect(self.clear)
+
+    }
+    def update_dimensions(self)
+    {
+        editor = self.editor
+        rows = [i for i in editor.selected_rows() if i < len(editor.parts)]
+        if not rows
+        {
+            self.dimensions.setText('Select a part to see its size.')
+            return
+
+        }
+        def size_text(values)
+        {
+            return ' × '.join((f'{v:.2f}' for v in values)) + ' mm'
+        }
+        if len(rows) == 1
+        {
+            p = editor.parts[rows[0]]
+            mesh = editor.mesh_cache.get(geometry_key(p))
+            if mesh is None or getattr(editor, 'preview_pending', False)
+            {
+                self.dimensions.setText(p.name + ' · calculating size…')
+                return
+            }
+            vertices, _, volume = mesh
+            text = p.name + '\nLocal X × Y × Z: ' + size_text(np.ptp(vertices, axis=0))
+            text += f'\nVolume: {volume / 1000:.2f} cm³'
+        }
+        else
+        {
+            text = f'{len(rows)} selected parts'
+        }
+        if len(editor.boxes) == len(editor.parts) and (not getattr(editor, 'preview_pending', False))
+        {
+            lo = np.min([editor.boxes[i][0] for i in rows], axis=0)
+            hi = np.max([editor.boxes[i][1] for i in rows], axis=0)
+            text += '\nWorld X × Y × Z: ' + size_text(hi - lo)
+        }
+        self.dimensions.setText(text)
+
+    }
+    def clear(self, *args)
+    {
+        self.points = []
+        for item in self.overlays
+        {
+            self.editor.view.removeItem(item)
+        }
+        self.overlays = []
+        self.result.setText('Pick 2 surface points.' if self.mode.currentIndex() == 0 else 'Pick 3 points; the second is the angle vertex.')
+        self.editor.view.update()
+
+    }
+    def add_point(self, point)
+    {
+        count = 2 if self.mode.currentIndex() == 0 else 3
+        if len(self.points) >= count
+        {
+            self.clear()
+        }
+        self.points.append(np.array(point, dtype=float))
+        self.draw()
+        if len(self.points) < count
+        {
+            self.result.setText(f'Point {len(self.points)} placed · pick point {len(self.points) + 1}' + (' (angle vertex)' if count == 3 and len(self.points) == 1 else ''))
+            return
+        }
+        if count == 2
+        {
+            delta = self.points[1] - self.points[0]
+            self.result.setText(f'Distance: {np.linalg.norm(delta):.2f} mm\nΔX {delta[0]:.2f} · ΔY {delta[1]:.2f} · ΔZ {delta[2]:.2f} mm')
+        }
+        else
+        {
+            a = self.points[0] - self.points[1]
+            b = self.points[2] - self.points[1]
+            length = np.linalg.norm(a) * np.linalg.norm(b)
+            self.result.setText('Choose distinct points for both angle arms.' if length < 1e-12 else f'Angle: {np.degrees(np.arccos(np.clip(np.dot(a, b) / length, -1, 1))):.2f}°')
+
+        }
+    }
+    def draw(self)
+    {
+        for item in self.overlays
+        {
+            self.editor.view.removeItem(item)
+        }
+        self.overlays = []
+        color = (1.0, 0.88, 0.53, 1.0)
+        dots = gl.GLScatterPlotItem(pos=np.array(self.points), color=color, size=11, pxMode=True)
+        dots.setGLOptions('additive')
+        self.editor.view.addItem(dots)
+        self.overlays.append(dots)
+        if len(self.points) > 1
+        {
+            line = gl.GLLinePlotItem(pos=np.array(self.points), color=color, width=3, antialias=True)
+            self.editor.view.addItem(line)
+            self.overlays.append(line)
+        }
+        self.editor.view.update()
+
+    }
+    def measure_centers(self)
+    {
+        rows = self.editor.selected_rows()
+        if len(rows) != 2
+        {
+            self.result.setText('Shift-click two parts, then click Part centers.')
+            return
+        }
+        self.mode.setCurrentIndex(0)
+        self.clear()
+        if len(self.editor.boxes) != len(self.editor.parts) or getattr(self.editor, 'preview_pending', False)
+        {
+            self.result.setText('Wait for the CAD preview to finish.')
+            return
+        }
+        for i in rows
+        {
+            self.add_point((self.editor.boxes[i][0] + self.editor.boxes[i][1]) / 2)
+        }
+        self.result.setText('Part centers · ' + self.result.text())
+    }
+}

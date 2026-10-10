@@ -1,0 +1,15 @@
+*.py
+!bootstrap.py
+!vendor/**/*.py
+__pycache__/
+*.pyc
+*.py.next
+.venv
+Training
+Validation
+.collision-cache
+simulation/
+Recovery.mjcad
+MyRobot.mjcad
+*.log
+.DS_Store
