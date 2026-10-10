@@ -1,0 +1,1 @@
+Compiler/runtime copied without modification from https://github.com/tornapart0/tays-sensible-lang at 59d9f6894d74a57a6ce31e30d25e10a0f66ece9f. Python bootstrap and upstream compiler are infrastructure; all CAD/training/test sources are canonical .mylang.
