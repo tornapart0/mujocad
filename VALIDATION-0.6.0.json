@@ -28,6 +28,7 @@
     "release-060-gui.log": "PASS native CAD: visible cable route, loops and knots; rigid M4 connection preserves pose; solarpunk rendering\n",
     "release-060-propeller-training.log": "PASS packaged runtime: propeller physics runs in training environment; training and viewer executables resolved\n"
   },
-  "publication": "Prepared locally; GitHub authentication required",
-  "limitations": "See RELEASE-NOTES-0.6.0.txt"
+  "publication": "Verified release candidate; publication status is available on the GitHub release page",
+  "limitations": "See RELEASE-NOTES-0.6.0.txt",
+  "release_url": "https://github.com/tornapart0/mujocad/releases/tag/v0.6.0"
 }

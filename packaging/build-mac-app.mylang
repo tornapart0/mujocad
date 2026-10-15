@@ -25,4 +25,4 @@ for f in resources.rglob('*.dist-info/direct_url.json')
 {
     f.unlink()
 }
-(contents / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleName': 'MuJoCoCAD', 'CFBundleDisplayName': 'MuJoCoCAD', 'CFBundleExecutable': 'MuJoCoCAD', 'CFBundleIdentifier': 'local.mujocad.demo', 'CFBundleShortVersionString': '0.5.1', 'CFBundleVersion': '501', 'CFBundlePackageType': 'APPL', 'NSHighResolutionCapable': True, 'LSMinimumSystemVersion': '14.0'}))
+(contents / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleName': 'MuJoCoCAD', 'CFBundleDisplayName': 'MuJoCoCAD', 'CFBundleExecutable': 'MuJoCoCAD', 'CFBundleIdentifier': 'local.mujocad.demo', 'CFBundleShortVersionString': '0.6.0', 'CFBundleVersion': '600', 'CFBundlePackageType': 'APPL', 'NSHighResolutionCapable': True, 'LSMinimumSystemVersion': '14.0'}))
