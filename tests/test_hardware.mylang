@@ -15,6 +15,21 @@ parts = [base, slider, fixed]
 ensure_screw(fixed, parts)
 base.tendons = [dict(name='spring_cable', points=[dict(body='base', position=[0, 0, 0]), dict(body='base', position=[0, 0, 20]), dict(body='slider', position=[0, 0, 0])], mode='Passive spring', rest_mm=40, stiffness=10, damping=0.1, force=10, kp=10, target=0, diameter_mm=1, density=970, attachment_hardware=True)]
 sync_cable_hardware(parts)
+count=len(parts)
+sync_cable_hardware(parts)
+assert len(parts)==count
+from copy import deepcopy
+linked=deepcopy(parts)
+linked[0].tendons.append(dict(name='second_cable',points=[dict(body='spring_cable_guide_0',position=[0,0,0]),dict(body='slider',position=[1,0,0])],mode='Pull force',rest_mm=40,stiffness=0,damping=.1,force=2,kp=10,target=1,attachment_hardware=True))
+sync_cable_hardware(linked)
+validate(linked)
+assert any(p.name=='spring_cable_guide_0' for p in linked)
+selflinked=deepcopy(parts)
+selflinked[0].tendons[0]['points'][0]['body']='spring_cable_guide_0'
+sync_cable_hardware(selflinked)
+validate(selflinked)
+assert next(p for p in selflinked if p.name=='spring_cable_guide_0').parent=='base'
+
 for p in parts
 {
     print('solid', p.name, solid(p).volume, flush=True)
@@ -36,6 +51,7 @@ cfg = dict(ct=0.1, cp=0.05, max_rpm=20000, voltage=11.1, kv_rpm_v=2300, resistan
 p = Part('rotor', shape='Propeller', size=[127, 12.7, 1.2], position=[0, 0, 25], parent='base', joint='Hinge', axis='Z', motor='Torque', torque=1, unlimited=True, damping=0, armature=0, collision='None', propeller=cfg)
 path, m = export_model(out / 'propeller', [base.__class__('base', size=[30, 30, 10], position=[0, 0, 5]), p])
 d = mujoco.MjData(m)
+assert m.opt.density == 0
 f = FlightPhysics(m, json.loads((out / 'propeller/physics.json').read_text()))
 mujoco.mj_forward(m, d)
 f.apply(d)

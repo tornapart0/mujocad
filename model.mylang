@@ -142,7 +142,7 @@ def _solid(key)
             result=result+loft(sections).rotate(Axis.Z,angle)
         }
     }
-    elif p.shape == 'Ellipsoid' 
+    elif p.shape == 'Ellipsoid'
     {
         result=Sphere(1,align=a).transform_geometry(Matrix([[p.size[0]/2,0,0,0],[0,p.size[1]/2,0,0],[0,0,p.size[2]/2,0],[0,0,0,1]]))
     }
@@ -547,7 +547,7 @@ def export_model(directory, parts)
     ET.SubElement(model, 'compiler', angle='radian', meshdir='meshes', autolimits='true')
     from physics_features import environment, tendons
     env = environment(parts)
-    ET.SubElement(model, 'option', timestep=str(env['timestep']), gravity=fmt(env['gravity']), density=str(0 if any(p.aero for p in parts) else env['density']), viscosity=str(0 if any(p.aero for p in parts) else env['viscosity']), wind=fmt(env['wind']), integrator='implicitfast', iterations='50')
+    ET.SubElement(model, 'option', timestep=str(env['timestep']), gravity=fmt(env['gravity']), density=str(0 if any(p.aero or p.propeller for p in parts) else env['density']), viscosity=str(0 if any(p.aero or p.propeller for p in parts) else env['viscosity']), wind=fmt(env['wind']), integrator='implicitfast', iterations='50')
     visual = ET.SubElement(model, 'visual')
     ET.SubElement(visual, 'global', azimuth='135', elevation='-25')
     assets = ET.SubElement(model, 'asset')
@@ -870,7 +870,7 @@ def export_model(directory, parts)
         }
         return settings
     }
-    physics = {'environment': env, 'wings': [{'body': p.name, 'settings': exported_aero(p)} for p in parts if p.aero], 'servos': [{'body': p.name, 'settings': p.servo} for p in parts if p.servo], 'propellers': [{'body':p.name,'settings':dict(p.propeller,diameter_m=p.size[0]*.001)} for p in parts if p.propeller], 'cable_mass_kg':cable_mass, 'servo_mass_kg': servo_mass, 'builtin_fluids_disabled': any(p.aero for p in parts), 'wing_model': 'Approximate normal-force model, not experimentally calibrated. Custom wing scenes disable built-in fluids; frame air drag omitted.'}
+    physics = {'environment': env, 'wings': [{'body': p.name, 'settings': exported_aero(p)} for p in parts if p.aero], 'servos': [{'body': p.name, 'settings': p.servo} for p in parts if p.servo], 'propellers': [{'body':p.name,'settings':dict(p.propeller,diameter_m=p.size[0]*.001)} for p in parts if p.propeller], 'cable_mass_kg':cable_mass, 'servo_mass_kg': servo_mass, 'builtin_fluids_disabled': any(p.aero or p.propeller for p in parts), 'wing_model': 'Approximate normal-force model, not experimentally calibrated. Custom wing scenes disable built-in fluids; frame air drag omitted.'}
     (root / 'physics.json').write_text(json.dumps(physics, indent=2))
     import shutil
     helper = Path(__file__).with_name('flight_physics.py')

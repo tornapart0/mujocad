@@ -8,17 +8,17 @@
     "route_sites": true,
     "propeller": {
       "body": "rotor",
-      "rpm": 10723.116478929593,
-      "thrust_n": 1.017865791372543,
-      "shaft_torque_nm": 0.024572843523345156,
-      "current_a": 5.918502959624371,
-      "electrical_power_w": 32.84769142591526,
+      "rpm": 11740.341118010077,
+      "thrust_n": 1.2201406689072092,
+      "shaft_torque_nm": 0.012331155088976272,
+      "current_a": 2.970025744898326,
+      "electrical_power_w": 16.48364288418571,
       "model": "Static calibrated coefficients; no forward-flight or ground-effect model"
     },
     "rpm_squared": true
   },
   "checks": {
-    "hardware-tests.log": "solid base 9000.0\nsolid slider 999.9999999999998\nsolid bracket 999.9999999999998\nsolid bracket_joint_screw 147.97889681476377\nsolid spring_cable_guide_0 12.337005501361695\nsolid spring_cable_knot_0 8.509032839254422\nsolid spring_cable_guide_1 12.337005501361695\nsolid spring_cable_guide_2 12.337005501361695\nsolid spring_cable_knot_2 8.509032839254422\nspring rigid cable passed\npropeller {'body': 'rotor', 'rpm': 10723.116478929593, 'thrust_n': 1.017865791372543, 'shaft_torque_nm': 0.024572843523345156, 'current_a': 5.918502959624371, 'electrical_power_w': 32.84769142591526, 'model': 'Static calibrated coefficients; no forward-flight or ground-effect model'}\n",
+    "hardware-tests.log": "solid base 9000.0\nsolid slider 999.9999999999998\nsolid bracket 999.9999999999998\nsolid bracket_joint_screw 147.97889681476377\nsolid spring_cable_guide_0 12.337005501361695\nsolid spring_cable_knot_0 8.509032839254422\nsolid spring_cable_guide_1 12.337005501361695\nsolid spring_cable_guide_2 12.337005501361695\nsolid spring_cable_knot_2 8.509032839254422\nspring rigid cable passed\npropeller {'body': 'rotor', 'rpm': 11740.341118010077, 'thrust_n': 1.2201406689072092, 'shaft_torque_nm': 0.012331155088976272, 'current_a': 2.970025744898326, 'electrical_power_w': 16.48364288418571, 'model': 'Static calibrated coefficients; no forward-flight or ground-effect model'}\n",
     "hardware-backend-test.log": "Union volume 26000.000000000007\nCut volume 19999.999999999993\nIntersect volume 3999.999999999999\nPosition motor settles: [0.52397456] mass [0.     0.48   0.0875]\nFloating robot: 8 1 6\nCut collision pieces: 4 export seconds 0.4797488749900367\nPreview cold 0.19103491699206643 cached 3.6116660048719497e-06 speedup 52893.84919158368 {'solid': {'hits': 22, 'misses': 13, 'maxsize': 128, 'currsize': 13}, 'mesh': {'hits': 1000, 'misses': 7, 'maxsize': 128, 'currsize': 7}}\nPASS\n",
     "hardware-scene-regression.log": "PASS: Earth, Moon, Mars, Space and water options; free drift has no gravity or floor\nPASS: joint rig preserves world pose and rejects parent cycles\nPASS: routed tendon contracts through a pulling actuator; passive and length-servo modes compile\nPASS: upward thrust lifts a free body against Earth gravity\nPASS: downstroke makes upward wing force, feathering reduces upstroke force, vacuum produces no aerodynamic force\nPASS: wing-only ornithopter flaps with mirrored targets without a thruster; flight settings survive save/load\nALL PHYSICS TESTS PASSED\n",
     "hardware-editor-final.log": "PASS native OpenGL, rotated exact picking, Shift selection, join world-pose preservation, motor inspector, asynchronous Apply and sketch extrusion, undo/redo\n",
@@ -28,7 +28,6 @@
     "release-060-gui.log": "PASS native CAD: visible cable route, loops and knots; rigid M4 connection preserves pose; solarpunk rendering\n",
     "release-060-propeller-training.log": "PASS packaged runtime: propeller physics runs in training environment; training and viewer executables resolved\n"
   },
-  "publication": "Verified release candidate; publication status is available on the GitHub release page",
-  "limitations": "See RELEASE-NOTES-0.6.0.txt",
-  "release_url": "https://github.com/tornapart0/mujocad/releases/tag/v0.6.0"
+  "publication": "Verified release candidate; see the GitHub release page for publication status",
+  "limitations": "See RELEASE-NOTES-0.6.0.txt"
 }

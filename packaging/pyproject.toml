@@ -9,8 +9,7 @@ description = "Solarpunk parametric robot CAD and MuJoCo demo in Tay's Sensible 
 requires-python = ">=3.11,<3.13"
 dependencies = [
   "build123d==0.13.0", "PySide6==6.12.0", "pyqtgraph==0.14.0",
-  "mujoco==3.15.0", "coacd==1.0.14", "trimesh==5.1.1", "PyOpenGL==3.1.10", "shapely==2.2.0", "shapely==2.2.0",
-]
+  "mujoco==3.15.0", "coacd==1.0.14", "trimesh==5.1.1", "PyOpenGL==3.1.10", "shapely==2.2.0", ]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Operating System :: MacOS :: MacOS X",
@@ -31,4 +30,4 @@ Source = "https://github.com/tornapart0/mujocad"
 where = ["src"]
 
 [tool.setuptools.package-data]
-mujocad_demo = ["*.mylang", "sources/*.mylang", "sources/*.txt", "sources/*.json", "sources/.wakatime-project", "sources/*.json", "sources/.wakatime-project", "sources/Examples/*.mjcad", "sources/vendor/*.md", "sources/vendor/*.json", "sources/vendor/mylang/*.py"]
+mujocad_demo = ["*.mylang", "sources/*.mylang", "sources/*.txt", "sources/*.json", "sources/.wakatime-project", "sources/Examples/*.mjcad", "sources/vendor/*.md", "sources/vendor/*.json", "sources/vendor/mylang/*.py"]
