@@ -1,0 +1,37 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""Solarpunk palette shared by the editor and its dialogs."""
+from PySide6 import QtWidgets as W, QtGui as G, QtCore as C
+STYLE = '\nQWidget { background: #e8dec8; color: #273f32; font-family: Helvetica; font-size: 13px; }\nQLabel { background: transparent; }\nQLabel#brand { color: #234b37; font-size: 23px; font-weight: 600; }\nQLabel#brandNote { color: #61704f; font-size: 12px; }\nQMenuBar,QMenu { background: #ded3b9; }\nQMenu::item { padding: 7px 20px; }\nQMenu::item:selected,QMenuBar::item:selected { background: #c3d1ad; }\nQLineEdit,QDoubleSpinBox,QSpinBox,QComboBox,QListWidget,QTreeWidget,QTableWidget,QPlainTextEdit,QTextEdit {\n background: #f5efdf; border: 1px solid #b3b89a; border-radius: 6px; padding: 6px;\n selection-background-color: #386247; selection-color: #fff6df;\n}\nQLineEdit:focus,QDoubleSpinBox:focus,QSpinBox:focus,QComboBox:focus { border: 1px solid #386247; }\nQComboBox QAbstractItemView { background: #f5efdf; color: #273f32; selection-background-color: #386247; selection-color: #fff6df; }\nQPushButton { background: #ded8bb; border: 1px solid #a9b393; border-radius: 8px; padding: 8px; color: #284b36; }\nQPushButton:hover { background: #cad5b4; border-color: #70895d; }\nQPushButton:pressed { background: #b6c69e; }\nQPushButton:checked,QPushButton#primary { background: #386247; border-color: #2c5039; color: #fff4d9; }\nQPushButton#primary:hover,QPushButton:checked:hover { background: #487857; }\nQPushButton:disabled { background: #e2dcc9; color: #7a806d; border-color: #c7c8b2; }\nQListWidget::item,QTreeWidget::item { padding: 8px; border-radius: 4px; }\nQListWidget::item:selected,QTreeWidget::item:selected { background: #386247; color: #fff4d9; }\nQTabBar::tab { padding: 8px 16px; background: #d4d2b6; border-top-left-radius: 6px; border-top-right-radius: 6px; }\nQTabBar::tab:selected { background: #f5efdf; color: #234b37; }\nQTabWidget::pane { border: 1px solid #b3b89a; border-radius: 5px; }\nQScrollArea { border: none; }\nQHeaderView::section { background: #d4d2b6; color: #273f32; border: none; padding: 7px; }\nQSplitter::handle { background: #bec3a4; }\nQStatusBar { color: #556747; }\nQProgressBar { background: #f5efdf; border: 1px solid #b3b89a; border-radius: 6px; text-align: center; color: #273f32; }\nQProgressBar::chunk { background: #91af75; border-radius: 5px; }\nQGroupBox { border: 1px solid #b3b89a; border-radius: 6px; margin-top: 12px; padding-top: 12px; }\nQGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }\nQCheckBox::indicator { width: 15px; height: 15px; }\nQCheckBox::indicator:unchecked { background: #f5efdf; border: 1px solid #82936c; border-radius: 4px; }\nQCheckBox::indicator:checked { background: #386247; border: 2px solid #a8bb88; border-radius: 4px; }\nQToolTip { background: #fff4d9; color: #273f32; border: 1px solid #82936c; padding: 6px; }\nQScrollBar:vertical { background: #e8dec8; width: 10px; margin: 0; }\nQScrollBar::handle:vertical { background: #a5b58c; min-height: 24px; border-radius: 5px; }\nQScrollBar::add-line:vertical,QScrollBar::sub-line:vertical { height: 0; }\n'
+
+class SolarMark(W.QWidget)
+{
+    """Small vector sun and sprout; no image files or animation overhead."""
+
+    def __init__(self, parent=None)
+    {
+        super().__init__(parent)
+        self.setFixedSize(48, 48)
+
+    }
+    def paintEvent(self, event)
+    {
+        p = G.QPainter(self)
+        p.setRenderHint(G.QPainter.Antialiasing)
+        p.setPen(C.Qt.NoPen)
+        p.setBrush(G.QColor('#c9aa59'))
+        p.drawEllipse(C.QRectF(17, 5, 22, 22))
+        p.setPen(G.QPen(G.QColor('#386247'), 2.5))
+        p.drawLine(C.QPointF(24, 39), C.QPointF(24, 22))
+        p.setPen(C.Qt.NoPen)
+        p.setBrush(G.QColor('#386247'))
+        leaf = G.QPainterPath(C.QPointF(24, 32))
+        leaf.cubicTo(8, 32, 7, 20, 7, 20)
+        leaf.cubicTo(21, 18, 24, 26, 24, 32)
+        p.drawPath(leaf)
+        leaf = G.QPainterPath(C.QPointF(24, 27))
+        leaf.cubicTo(24, 16, 39, 17, 39, 17)
+        leaf.cubicTo(39, 28, 29, 29, 24, 27)
+        p.drawPath(leaf)
+        p.end()
+    }
+}

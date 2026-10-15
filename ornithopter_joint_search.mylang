@@ -1,0 +1,57 @@
+"""Retune actuator-limited gait for alternative geometries, without changing air coefficients."""
+from pathlib import Path
+import json,time,datetime
+from model import load_project
+from ornithopter_gait_search import search,DEADLINE
+from ornithopter_optimize import evaluate
+
+def main()
+{
+    out=Path('outputs/Overnight-Joint-Search')
+    out.mkdir(parents=True,exist_ok=True)
+    rows=[json.loads(line) for line in Path('outputs/Overnight-Morphology/morphology.jsonl').read_text().splitlines()]
+    alternatives=sorted([r for r in rows if r.get('folder') and not (r['sx']==1.4 and r['sy']==2)],key=lambda r:r['lift_to_weight'],reverse=True)[:4]
+    reports=[]
+    for row in alternatives
+    {
+        if time.time()>=DEADLINE
+        {
+            break
+        }
+        folder=Path(row['folder'])
+        target=out/folder.name
+        result=target/'gait-results.json'
+        if not result.exists()
+        {
+            search(folder/'fixture',target,generations=6,population=16)
+        }
+        report=dict(json.loads(result.read_text()),sx=row['sx'],sy=row['sy'],candidate=str(folder/'candidate.mjcad'))
+        if report['best']['lift_to_weight']>1.05 and time.time()<DEADLINE
+        {
+            parts=load_project(folder/'candidate.mjcad')
+            frequency,amplitude,duty,pitch_angle,pitch_phase=report['best']['parameters']
+            for p in parts
+            {
+                if p.name.endswith('_wing_hinge')
+                {
+                    p.aero.update(flap_hz=frequency,amplitude_deg=amplitude*(1 if p.name.startswith('right') else -1),downstroke_duty=duty)
+                }
+                elif p.name.endswith('_wing_pitch')
+                {
+                    p.aero.update(flap_hz=frequency,amplitude_deg=-pitch_angle,phase_deg=pitch_phase,downstroke_duty=duty)
+                    p.limits=[-pitch_angle,0]
+                }
+            }
+            report['nominal_free_flight']=evaluate(target/'nominal-free-flight',parts,seconds=20)
+            report['note']='Nominal trial only; multi-seed parameter variation and hardware calibration still required.'
+        }
+        reports.append(report)
+        (out/'progress.json').write_text(json.dumps({'reports':reports,'utc':datetime.datetime.now(datetime.timezone.utc).isoformat()},indent=2))
+        print(json.dumps(report),flush=True)
+    }
+    (out/'results.json').write_text(json.dumps({'reports':reports,'physical_flight_validated':False,'deadline_reached':time.time()>=DEADLINE},indent=2))
+}
+if __name__=='__main__'
+{
+    main()
+}

@@ -1,0 +1,83 @@
+"""Open the new compact CAD; --train invokes the ordinary Create Training wizard."""
+from pathlib import Path
+import sys,json,argparse
+from PySide6 import QtWidgets as W,QtCore as C
+from app import Window,STYLE
+from model import load_project
+from training_ui import TrainingWizard
+from cad_activity import CADActivity
+ROOT=Path(__file__).resolve().parent
+parser=argparse.ArgumentParser(description='Open an editable compact ornithopter prototype.')
+parser.add_argument('--project',type=Path,default=ROOT.parent/'Compact-Classroom-Ground-600')
+parser.add_argument('--train',action='store_true')
+options,qt_args=parser.parse_known_args()
+FOLDER=options.project.resolve()
+app=W.QApplication([sys.argv[0],*qt_args])
+app.setApplicationName('MuJoCoCAD')
+app.setOrganizationName('MuJoCoCAD')
+app.setStyle('Fusion')
+app.setStyleSheet(STYLE)
+window=Window()
+window.parts=load_project(FOLDER/'CompactCrank.mjcad')
+window.path=FOLDER/'CompactCrank.mjcad'
+window.selected=0
+window.history.clear()
+window.redo_history.clear()
+window.dirty=False
+window.needs_frame=True
+window.refresh()
+window.cad_activity=CADActivity(window)
+window.setWindowTitle('MuJoCoCAD · '+FOLDER.name+' · flight unvalidated')
+window.show()
+window.raise_()
+window.activateWindow()
+def advance()
+{
+    wizard=app.activeModalWidget()
+    if isinstance(wizard,TrainingWizard)
+    {
+        wizard.goal.setCurrentIndex(2)
+        wizard.duration.setCurrentIndex(0)
+        wizard.job_name.setText('Confined wing-only flight · exploratory')
+        if wizard.currentId()<2
+        {
+            if wizard.currentPage().isComplete()
+            {
+                wizard.next()
+            }
+        }
+        elif wizard.controls_valid() and wizard.target_valid()
+        {
+            wizard.accept()
+            timer.stop()
+        }
+    }
+}
+def begin()
+{
+    if window.jobs
+    {
+        C.QTimer.singleShot(300,begin)
+        return
+    }
+    timer.start(250)
+    window.create_training()
+}
+def audit()
+{
+    if window.training_panels
+    {
+        p=window.training_panels[-1]
+        (FOLDER/'training-session.json').write_text(json.dumps({'entry_point':'Window.create_training / TrainingWizard / TrainingPanel','folder':str(p.folder),'goal':p.config['goal'],'steps_requested':p.config['steps'],'running':p.running,'state':p.state.text()},indent=2))
+    }
+}
+timer=C.QTimer()
+timer.timeout.connect(advance)
+recorder=C.QTimer()
+recorder.timeout.connect(audit)
+recorder.start(2000)
+if options.train
+{
+    C.QTimer.singleShot(1000,begin)
+}
+sys.exit(app.exec())

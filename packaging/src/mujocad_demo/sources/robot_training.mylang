@@ -1,0 +1,439 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""Gymnasium tasks and PPO training for immutable MuJoCoCAD robot snapshots."""
+from pathlib import Path
+import argparse, json, math, signal, time
+import numpy as np
+import gymnasium as gym
+from gymnasium import spaces
+import mujoco
+from flight_physics import FlightPhysics
+from servo_models import ServoPhysics
+
+class RobotTask(gym.Env)
+{
+    metadata = {'render_modes': []}
+
+    def __new__(cls, config_path)
+    {
+        if cls is RobotTask and json.loads(Path(config_path).read_text()).get('goal')=='ground_flight'
+        {
+            from ground_flight_training import GroundFlightTask
+            return GroundFlightTask(config_path)
+        }
+        return super().__new__(cls)
+    }
+
+    def __init__(self, config_path)
+    {
+        self.path = Path(config_path)
+        self.config = json.loads(self.path.read_text())
+        c = self.config
+        if c.get('version') != 1
+        {
+            raise ValueError('Unsupported training task version.')
+        }
+        for key, default in [('episode_seconds', 5), ('angle_tolerance', 5), ('distance_tolerance_mm', 5)]
+        {
+            if not math.isfinite(float(c.get(key, default))) or float(c.get(key, default)) <= 0
+            {
+                raise ValueError('Attempt duration and goal tolerances must be positive finite numbers.')
+            }
+        }
+        self.model = mujoco.MjModel.from_xml_path(str(self.path.parent / c.get('model', 'robot.xml')))
+        physics_path = self.path.parent / 'physics.json'
+        physics_config = json.loads(physics_path.read_text()) if physics_path.exists() else {'environment': {'density': 0, 'wind': [0, 0, 0]}, 'wings': []}
+        self.flight = FlightPhysics(self.model, physics_config)
+        self.servos = ServoPhysics(self.model, physics_config)
+        self.data = mujoco.MjData(self.model)
+        self.ids = np.array([self._id(mujoco.mjtObj.mjOBJ_ACTUATOR, name) for name in c['motors']], dtype=int)
+        if not len(self.ids) or len(set(self.ids)) != len(self.ids)
+        {
+            raise ValueError('Choose at least one unique motor.')
+        }
+        ranges = self.model.actuator_ctrlrange[self.ids]
+        if not np.all(self.model.actuator_ctrllimited[self.ids]) or not np.all(np.isfinite(ranges)) or np.any(ranges[:, 0] >= ranges[:, 1])
+        {
+            raise ValueError('Training motors require finite control limits.')
+        }
+        self.low = ranges[:, 0]
+        self.high = ranges[:, 1]
+        self.action_space = spaces.Box(-1.0, 1.0, shape=(len(self.ids),), dtype=np.float32)
+        self.joints = []
+        self.targets = []
+        self.tolerances = []
+        self.scales = []
+        if c['goal'] == 'pose'
+        {
+            for name, value in c['joint_targets'].items()
+            {
+                joint = self._id(mujoco.mjtObj.mjOBJ_JOINT, name)
+                kind = self.model.jnt_type[joint]
+                if kind not in [int(mujoco.mjtJoint.mjJNT_HINGE), int(mujoco.mjtJoint.mjJNT_SLIDE)]
+                {
+                    raise ValueError('Pose targets require hinge or slide joints.')
+                }
+                if joint not in self.model.actuator_trnid[self.ids, 0]
+                {
+                    raise ValueError(f'{name} needs a selected motor.')
+                }
+                if self.model.jnt_limited[joint] and (not self.model.jnt_range[joint, 0] <= value <= self.model.jnt_range[joint, 1])
+                {
+                    raise ValueError(f'{name} target is outside its motion limits.')
+                }
+                hinge = kind == mujoco.mjtJoint.mjJNT_HINGE
+                self.joints.append(joint)
+                self.targets.append(float(value))
+                self.tolerances.append(math.radians(c.get('angle_tolerance', 5)) if hinge else c.get('distance_tolerance_mm', 5) * 0.001)
+                self.scales.append(1.0 if hinge else 0.1)
+            }
+            if not self.joints
+            {
+                raise ValueError('Choose a hinge or slide motor for a joint-pose goal.')
+            }
+            self.joints = np.array(self.joints)
+            self.targets = np.array(self.targets)
+            self.tolerances = np.array(self.tolerances)
+            self.scales = np.array(self.scales)
+        }
+        elif c['goal'] == 'reach'
+        {
+            self.site = self._id(mujoco.mjtObj.mjOBJ_SITE, c['site'])
+            self.target = np.asarray(c['target'], dtype=float)
+            body = int(self.model.site_bodyid[self.site])
+            movable = False
+            while body
+            {
+                movable = movable or bool(self.model.body_jntnum[body])
+                body = int(self.model.body_parentid[body])
+            }
+            if not movable
+            {
+                raise ValueError('The chosen part is fixed to the world. Choose a moving part.')
+            }
+            if self.target.shape != (3,) or not np.isfinite(self.target).all()
+            {
+                raise ValueError('Target must have three finite coordinates.')
+            }
+        }
+        else
+        {
+            raise ValueError('Unsupported training goal.')
+        }
+        if not all(np.isfinite(self.targets)) or any((x <= 0 for x in self.tolerances))
+        {
+            raise ValueError('Targets and tolerances must be valid.')
+        }
+        self.frames = max(1, round(0.02 / self.model.opt.timestep))
+        self.dt = self.frames * self.model.opt.timestep
+        self.max_steps = max(1, round(c.get('episode_seconds', 5) / self.dt))
+        self.hold_steps = max(1, round(0.2 / self.dt))
+        dim = self.model.nq + self.model.nv + (len(self.joints) if c['goal'] == 'pose' else 3)
+        self.observation_space = spaces.Box(-np.inf, np.inf, shape=(dim,), dtype=np.float32)
+        self.initial_controls = np.zeros(self.model.nu)
+        controls = self.path.parent / 'controls.json'
+        if controls.exists()
+        {
+            for entry in json.loads(controls.read_text())
+            {
+                self.initial_controls[self._id(mujoco.mjtObj.mjOBJ_ACTUATOR, entry['name'])] = entry['initial']
+            }
+        }
+        self.elapsed = 0
+        self.held = 0
+        self.last_action = np.zeros(len(self.ids))
+        self.reset(seed=42)
+
+    }
+    def _id(self, kind, name)
+    {
+        i = mujoco.mj_name2id(self.model, kind, name)
+        if i < 0
+        {
+            raise ValueError(f'Model has no {name}.')
+        }
+        return i
+
+    }
+    def error(self)
+    {
+        if self.config['goal'] == 'reach'
+        {
+            return self.data.site_xpos[self.site] - self.target
+        }
+        error = self.data.qpos[self.model.jnt_qposadr[self.joints]] - self.targets
+        for i, j in enumerate(self.joints)
+        {
+            if self.model.jnt_type[j] == mujoco.mjtJoint.mjJNT_HINGE and (not self.model.jnt_limited[j])
+            {
+                error[i] = math.atan2(math.sin(error[i]), math.cos(error[i]))
+            }
+        }
+        return error
+
+    }
+    def score(self)
+    {
+        error = self.error()
+        if self.config['goal'] == 'reach'
+        {
+            return (float(np.linalg.norm(error) / 0.1), bool(np.linalg.norm(error) <= self.config.get('distance_tolerance_mm', 5) * 0.001))
+        }
+        return (float(np.sqrt(np.mean((error / self.scales) ** 2))), bool(np.all(np.abs(error) <= self.tolerances)))
+
+    }
+    def observe(self)
+    {
+        return np.concatenate([self.data.qpos, self.data.qvel, self.error()]).astype(np.float32)
+
+    }
+    def reset(self, *, seed=None, options=None)
+    {
+        super().reset(seed=seed)
+        mujoco.mj_resetData(self.model, self.data)
+        if self.config.get('randomize_start', True)
+        {
+            for j in range(self.model.njnt)
+            {
+                kind = self.model.jnt_type[j]
+                if kind not in [int(mujoco.mjtJoint.mjJNT_HINGE), int(mujoco.mjtJoint.mjJNT_SLIDE)]
+                {
+                    continue
+                }
+                a = self.model.jnt_qposadr[j]
+                self.data.qpos[a] += self.np_random.uniform(-0.04, 0.04) if kind == mujoco.mjtJoint.mjJNT_HINGE else self.np_random.uniform(-0.002, 0.002)
+                if self.model.jnt_limited[j]
+                {
+                    self.data.qpos[a] = np.clip(self.data.qpos[a], *self.model.jnt_range[j])
+                }
+            }
+        }
+        self.data.ctrl[:] = self.initial_controls
+        for i in self.ids
+        {
+            joint = int(self.model.actuator_trnid[i, 0])
+            if self.model.actuator_biasprm[i, 1] != 0 and self.model.jnt_type[joint] in [int(mujoco.mjtJoint.mjJNT_HINGE), int(mujoco.mjtJoint.mjJNT_SLIDE)]
+            {
+                self.data.ctrl[i] = np.clip(self.data.qpos[self.model.jnt_qposadr[joint]] * self.model.actuator_gear[i, 0], *self.model.actuator_ctrlrange[i])
+            }
+            else
+            {
+                self.data.ctrl[i] = np.clip(0.0, *self.model.actuator_ctrlrange[i])
+            }
+        }
+        mujoco.mj_forward(self.model, self.data)
+        self.elapsed = 0
+        self.held = 0
+        self.last_action = np.zeros(len(self.ids))
+        self.previous, _ = self.score()
+        return (self.observe(), {'is_success': False})
+
+    }
+    def step(self, action)
+    {
+        action = np.asarray(action, dtype=float)
+        if action.shape != (len(self.ids),) or not np.isfinite(action).all()
+        {
+            raise ValueError('Actions must be finite motor commands.')
+        }
+        action = np.clip(action, -1, 1)
+        self.data.ctrl[self.ids] = self.low + (action + 1) * 0.5 * (self.high - self.low)
+        old_time = float(self.data.time)
+        for _ in range(self.frames)
+        {
+            self.flight.apply(self.data, auto_flap=False)
+            self.servos.apply(self.data)
+            mujoco.mj_step(self.model, self.data)
+        }
+        self.elapsed += 1
+        finite = bool(np.isfinite(self.data.qpos).all() and np.isfinite(self.data.qvel).all() and (self.data.time >= old_time + 0.5 * self.dt))
+        if not finite
+        {
+            return (np.zeros(self.observation_space.shape, dtype=np.float32), -100.0, True, False, {'is_success': False, 'unstable': True})
+        }
+        error, inside = self.score()
+        self.held = self.held + 1 if inside else 0
+        success = self.held >= self.hold_steps
+        reward = -error + 2 * (self.previous - error) - 0.005 * float(np.mean(action ** 2)) - 0.001 * float(np.mean((action - self.last_action) ** 2))
+        if inside
+        {
+            reward += 0.5
+        }
+        if success
+        {
+            reward += 5.0
+        }
+        self.previous = error
+        self.last_action = action.copy()
+        return (self.observe(), float(reward), bool(success), bool(self.elapsed >= self.max_steps and (not success)), {'is_success': bool(success), 'goal_error': error})
+
+    }
+}
+def emit(kind, **values)
+{
+    print(json.dumps({'event': kind, **values}), flush=True)
+
+}
+def evaluate(policy, env, episodes=10)
+{
+    results = []
+    ground_details=[]
+    for i in range(episodes)
+    {
+        obs, _ = env.reset(seed=1000 + i)
+        total = 0.0
+        success = False
+        longest_airborne=0.
+        maximum_height=0.
+        maximum_horizontal=0.
+        for _ in range(env.max_steps)
+        {
+            action, _ = policy.predict(obs, deterministic=True)
+            obs, r, end, timeout, info = env.step(action)
+            total += r
+            if env.config['goal']=='ground_flight'
+            {
+                longest_airborne=max(longest_airborne,float(info['airborne_seconds']))
+                maximum_height=max(maximum_height,float(info['height_gain_m']))
+                maximum_horizontal=max(maximum_horizontal,float(info.get('horizontal_drift_m',0)))
+            }
+            if end or timeout
+            {
+                success = info['is_success']
+                break
+            }
+        }
+        results.append((total, success))
+        if env.config['goal']=='ground_flight'
+        {
+            ground_details.append({'seed':1000+i,'success':bool(success),'maximum_airborne_seconds':longest_airborne,'maximum_height_gain_m':maximum_height,'maximum_horizontal_drift_m':maximum_horizontal,'simulated_seconds':float(env.data.time),'last_info':info})
+        }
+    }
+    report={'evaluation_episodes': episodes, 'success_rate': float(np.mean([x[1] for x in results])), 'mean_reward': float(np.mean([x[0] for x in results]))}
+    if env.config['goal']=='ground_flight'
+    {
+        report.update(ground_start_required=True,airborne_seconds_required=env.required,physical_flight_validated=False)
+        report.update(confined_flight=bool(getattr(env,'confined',False)),held_out_episodes=ground_details)
+    }
+    return report
+
+}
+def main()
+{
+    parser = argparse.ArgumentParser()
+    parser.add_argument('config')
+    parser.add_argument('--watch', action='store_true')
+    parser.add_argument('--resume', action='store_true')
+    parser.add_argument('--steps', type=int, default=20000)
+    args = parser.parse_args()
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.callbacks import BaseCallback
+    from stable_baselines3.common.env_checker import check_env
+    import torch
+    torch.set_num_threads(4)
+    env = RobotTask(args.config)
+    root = Path(args.config).parent
+    policy_path = root / 'policy.zip'
+    if args.watch
+    {
+        import mujoco.viewer
+        if not policy_path.exists()
+        {
+            raise ValueError('Train and save a policy first.')
+        }
+        policy = PPO.load(policy_path, device='cpu')
+        obs, _ = env.reset(seed=42)
+        with mujoco.viewer.launch_passive(env.model, env.data) as viewer
+        {
+            viewer.opt.geomgroup[3] = 0
+            if env.config['goal'] == 'reach'
+            {
+                with viewer.lock()
+                {
+                    mujoco.mjv_initGeom(viewer.user_scn.geoms[0], mujoco.mjtGeom.mjGEOM_SPHERE, np.array([0.006] * 3), env.target, np.eye(3).ravel(), np.array([1.0, 0.65, 0.1, 1.0], dtype=np.float32))
+                    viewer.user_scn.ngeom = 1
+                }
+            }
+            emit('watching')
+            while viewer.is_running()
+            {
+                start = time.monotonic()
+                action, _ = policy.predict(obs, deterministic=True)
+                obs, _, end, timeout, info = env.step(action)
+                if env.config['goal']=='ground_flight'
+                {
+                    text=f"Ground: Z=0 · Height gain: {info['height_gain_m']:.3f} m\nWing force: {info['wing_upward_force_n']:.3f} N · Weight: {info['weight_n']:.3f} N\nAirborne: {info['airborne_seconds']:.1f} / {env.required:.0f} s · Servo-driven · Uncalibrated model"
+                    if getattr(env,'compact',False)
+                    {
+                        text=text.replace('Servo-driven','Motor-crank drive')
+                    }
+                    if getattr(env,'confined',False)
+                    {
+                        text+=f"\nLaunch drift: {info['horizontal_drift_m']:.3f} m · Confined-flight test"
+                    }
+                    viewer.set_texts((mujoco.mjtFontScale.mjFONTSCALE_100,mujoco.mjtGridPos.mjGRID_TOPLEFT,'Ground takeoff training',text))
+                }
+                viewer.sync()
+                time.sleep(max(0, env.dt - (time.monotonic() - start)))
+                if end or timeout
+                {
+                    obs, _ = env.reset()
+                }
+            }
+        }
+        return
+    }
+    if args.steps < 512
+    {
+        raise ValueError('Choose at least 512 training steps.')
+    }
+    check_env(env, warn=True)
+    stop = {'requested': False}
+    signal.signal(signal.SIGINT, lambda *_: stop.update(requested=True))
+    policy = PPO.load(policy_path, env=env, device='cpu') if args.resume else PPO('MlpPolicy', env, n_steps=512, batch_size=64, n_epochs=10, device='cpu', seed=42, verbose=0)
+    offset = policy.num_timesteps
+    episodes = []
+    started = time.monotonic()
+
+    class Progress(BaseCallback)
+
+    {
+        def _on_step(self)
+        {
+            for info in self.locals.get('infos', [])
+            {
+                if 'episode' in info
+                {
+                    episodes.append(float(info['episode']['r']))
+                }
+            }
+            steps = self.num_timesteps - offset
+            if steps % 256 == 0
+            {
+                emit('progress', steps=steps, total=args.steps, seconds=time.monotonic() - started, mean_reward=float(np.mean(episodes[-20:])) if episodes else None)
+            }
+            return not stop['requested']
+        }
+    }
+    emit('started', total=args.steps, resumed=args.resume)
+    policy.learn(total_timesteps=args.steps, callback=Progress(), reset_num_timesteps=not args.resume)
+    policy.save(root / 'policy.next.zip')
+    (root / 'policy.next.zip').replace(policy_path)
+    emit('evaluating')
+    metrics = evaluate(policy, env)
+    metrics.update(steps=policy.num_timesteps - offset, total_steps=policy.num_timesteps, stopped=stop['requested'], seconds=time.monotonic() - started)
+    (root / 'results.next.json').write_text(json.dumps(metrics, indent=2))
+    (root / 'results.next.json').replace(root / 'results.json')
+    emit('finished', **metrics)
+}
+if __name__ == '__main__'
+{
+    try
+    {
+        main()
+    }
+    except Exception as error
+    {
+        emit('error', message=str(error))
+        raise
+    }
+}

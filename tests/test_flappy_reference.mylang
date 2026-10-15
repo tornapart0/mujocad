@@ -1,0 +1,31 @@
+"""Independent numerical comparison to the pinned upstream C++ implementation."""
+from pathlib import Path
+import sys,json,ctypes
+import numpy as np
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from flappy_physics import reference_load
+root=Path(__file__).resolve().parents[3]
+reference=root/'work/flappy-reference'
+c=json.loads((reference/'flappy/envs/fwmav/config/mav_config_list.json').read_text())[0]
+lib=ctypes.CDLL(str(reference/'libparity.dylib'))
+pointer=np.ctypeslib.ndpointer(dtype=np.float64,flags='C_CONTIGUOUS')
+lib.load_reference.argtypes=[pointer,ctypes.c_int,pointer,pointer]
+keys=['wing_length','mean_chord','r33','r22','r11','r00','z_cp2','z_cp1','z_cp0','z_rd','left_shoulder_width','stroke_plane_offset']
+parameters=np.array([c[k] for k in keys])
+rng=np.random.default_rng(741)
+maximum_error=0.
+for index in [0,1]
+{
+    for _ in range(500)
+    {
+        state=rng.uniform(-1,1,10)*np.array([2,2,2,.3,.3,.3,1.6,250,.785,400])
+        actual=np.array(reference_load(c,index,state[:6],*state[6:],1.18009482370369))
+        expected=np.zeros(4)
+        lib.load_reference(parameters,index,state,expected)
+        maximum_error=max(maximum_error,float(np.max(np.abs(actual-expected))))
+        assert np.allclose(actual,expected,rtol=2e-12,atol=1e-13),(actual,expected)
+    }
+}
+report={'states_compared':1000,'both_wings':True,'maximum_absolute_error':maximum_error,'source_commit':'80399e1b773d15c125bd9f1dc7b416e8a7a18398','passed':True,'scope':'Aerodynamic load numerical parity at zero stroke-plane/deviation angles only; not a flight or hardware validation.'}
+(reference/'port-parity.json').write_text(json.dumps(report,indent=2))
+print(json.dumps(report,indent=2))

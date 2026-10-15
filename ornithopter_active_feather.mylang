@@ -1,0 +1,77 @@
+"""Actuated pitch experiments; all extra servo and bracket mass is included."""
+from pathlib import Path
+from copy import deepcopy
+import itertools, time, json, datetime
+from model import Part, save_project
+from ornithopter_balance_search import balanced_candidate, fixture_screen, DEADLINE
+from ornithopter_optimize import evaluate
+PITCH_SOURCE = 'https://kstservos.com/products/x06n-v6-0-hv-micro-digital-metal-gear-glider-1-8kg-torque-servo-motor'
+
+def active_candidate(sy=2, frequency=2, feather_deg=45, sx=1.4)
+{
+    old = balanced_candidate(sy=sy, offset_mm=74, spring=0, actuator='X10MiniPro', frequency=frequency, amplitude=55, sx=sx)
+    parts = [p for p in old if not p.name.endswith('_hinge_allowance')]
+    for label in ['right', 'left']
+    {
+        parent = next((p for p in parts if p.name == label + '_wing_hinge'))
+        servo = deepcopy(parent.servo)
+        servo.update(profile='KST X06N V6 · 6 V manufacturer rated torque', mass_g=6, stall_nm=1.5 * 0.0980665, continuous_nm=0.04, seconds_60=0.08, voltage=6, rated_voltage=6, housing_mm=[20, 7, 16.6], travel_deg=120, source=PITCH_SOURCE, continuous_duty=True, continuous_rating_assumed=False, notes='Rated 0.04 Nm at 6 V; torque-speed envelope remains linear approximation. Rotor inertia and gains unmeasured.')
+        pitch = Part(name=label + '_wing_pitch', parent=parent.name, size=[4, 8, 4], density=1330, position=[0, 0, 0], pivot=[0, 45 * sy, 0], joint='Hinge', axis='X', limits=[-feather_deg, 0], motor='Position', torque=0.04, kp=0.3, kv=0.003, damping=1e-06, armature=1e-06, servo=servo, collision='None', color=[0.22, 0.3, 0.24, 1], aero={'area_m2': 3.2e-05, 'normal_coefficient': 1.4, 'upstroke_ratio': 1, 'axis': 'Z', 'flap_hz': frequency, 'amplitude_deg': -feather_deg, 'phase_deg': 0, 'waveform': 'Feather', 'downstroke_duty': 0.6})
+        for p in parts
+        {
+            if p.parent == parent.name
+            {
+                p.parent = pitch.name
+                p.joint = 'Fixed'
+                p.motor = 'None'
+                p.servo = {}
+                p.stiffness = 0
+                p.pivot = [0, 0, 0]
+            }
+        }
+        at = parts.index(parent) + 1
+        parts.insert(at, pitch)
+        parts.insert(at + 1, Part(name=label + '_pitch_bracket_allowance', parent=parent.name, size=[5, 5, 5], position=[0, 45 * sy, 0], mass=0.0005, motor='None', collision='None', color=[0.3, 0.3, 0.2, 1], material={'note': '0.5 g bracket allowance; measured hardware required.'}))
+    }
+    return parts
+
+}
+def main()
+{
+    out = Path('outputs/Overnight-Active-Feather')
+    out.mkdir(exist_ok=True)
+    for i, (sy, freq, angle) in enumerate(itertools.product([1, 2, 3], [1.5, 2], [40, 55]))
+    {
+        if time.time() >= DEADLINE
+        {
+            break
+        }
+        folder = out / str(i)
+        parameters = {'sy': sy, 'frequency': freq, 'feather_deg': angle}
+        try
+        {
+            parts = active_candidate(**parameters)
+            screen = fixture_screen(folder, parts)
+            save_project(folder / 'candidate.mjcad', parts)
+            row = {'parameters': parameters, 'screen': screen, 'physical_flight_validated': False, 'trial_directory': str(folder)}
+            if screen['fixture_mean_lift_n'] > 0.8 * screen['weight_n']
+            {
+                row['free_flight'] = evaluate(folder / 'free-flight', parts, seconds=15)
+            }
+        }
+        except Exception as e
+        {
+            row = {'parameters': parameters, 'error': str(e)}
+        }
+        with (out / 'search.jsonl').open('a') as f
+        {
+            f.write(json.dumps(row) + '\n')
+        }
+        print(json.dumps(row), flush=True)
+    }
+    (out / 'completed.json').write_text(json.dumps({'complete': True}))
+}
+if __name__ == '__main__'
+{
+    main()
+}

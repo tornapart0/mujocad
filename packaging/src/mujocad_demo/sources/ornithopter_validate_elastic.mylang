@@ -1,0 +1,46 @@
+"""Preserve baseline and searched spring gaits, then validate unsupported conservative trials."""
+from pathlib import Path
+import json
+from model import load_project,save_project,export_model
+from ornithopter_gait_search import FixtureGait
+from prototype_validation import validate
+
+def main()
+{
+    out=Path('outputs/Prototype-ElasticRecovery')
+    baseline=json.loads(Path('outputs/Prototype-Feather90/gait-results.json').read_text())['best']['parameters']
+    reports=[]
+    for stiffness in ['0.08','0.2','0.4']
+    {
+        folder=out/stiffness
+        searched=json.loads((folder/'gait-search/gait-results.json').read_text())['best']['parameters']
+        env=FixtureGait(folder/'diagnostics/fixture')
+        baseline_score,baseline_report=env.score(baseline)
+        search_score,search_report=env.score(searched)
+        values=baseline if baseline_score>=search_score else searched
+        parts=load_project(folder/'candidate.mjcad')
+        frequency,amplitude,duty,pitch_angle,pitch_phase=values
+        for p in parts
+        {
+            if p.name.endswith('_wing_hinge')
+            {
+                p.aero.update(flap_hz=frequency,amplitude_deg=amplitude*(1 if p.name.startswith('right') else -1),downstroke_duty=duty)
+            }
+            elif p.name.endswith('_wing_pitch')
+            {
+                p.aero.update(flap_hz=frequency,amplitude_deg=-pitch_angle,phase_deg=pitch_phase,downstroke_duty=duty)
+                p.limits=[-90,0]
+            }
+        }
+        save_project(folder/'selected-candidate.mjcad',parts)
+        export_model(folder/'selected-free-body',parts)
+        report={'stiffness_nm_rad':float(stiffness),'baseline':baseline_report,'searched':search_report,'selected_parameters':values,'unsupported_validation':validate(folder/'selected-free-body',values),'hardware_and_aero_calibrated':False}
+        reports.append(report)
+        (out/'unsupported-validation.json').write_text(json.dumps(reports,indent=2))
+        print(json.dumps({'stiffness':stiffness,'selected_lift_to_weight':max(baseline_score,search_score),'simulation_success':report['unsupported_validation']['simulation_success']}),flush=True)
+    }
+}
+if __name__=='__main__'
+{
+    main()
+}

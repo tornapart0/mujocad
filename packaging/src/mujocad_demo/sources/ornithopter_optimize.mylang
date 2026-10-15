@@ -1,0 +1,148 @@
+"""Reproducible wing-only design experiments. No tuned aerodynamic coefficients."""
+from pathlib import Path
+from copy import deepcopy
+import json, math, time
+import numpy as np
+from scipy.spatial.transform import Rotation
+import mujoco
+from davinci_design import build_design
+from model import Part, export_model, save_project
+from flight_physics import FlightPhysics
+from servo_models import ServoPhysics
+SERVO_SOURCE = 'https://kstservos.com/collections/x-series/products/x08h-plus-horizontal-lug-servo-5-3kg-cm-0-09s-9-5g-8mm'
+
+def candidate(sx=1.4, sy=3, frequency=1.7, amplitude=40, duty=0.65, spring=1e-05)
+{
+    parts = build_design(frequency)
+    for p in parts
+    {
+        if p.name == 'fuselage_balsa_keel'
+        {
+            p.position[2] = 1500
+            p.size[2] = 4
+        }
+        if p.name == 'battery_ESTIMATE_12g'
+        {
+            p.position[1]=110*sy/3
+        }
+        if p.name == 'controller_wiring_ESTIMATE_4g'
+        {
+            p.name = 'controller_wiring_ESTIMATE_2g'
+            p.mass = 0.002
+        }
+        if p.servo
+        {
+            p.pivot=[0,140*sy/3,0]
+            p.servo.update(profile='KST X08H Plus V6 · 7.4 V · manufacturer', mass_g=9.5, stall_nm=4.84 * 0.0980665, continuous_nm=1.3 * 0.0980665, seconds_60=0.12, voltage=7.4, rated_voltage=7.4, housing_mm=[23.5, 8, 16.8], travel_deg=120, source=SERVO_SOURCE, continuous_duty=False, continuous_rating_assumed=True, notes='Mass uses 9.5 g headline conservatively; nominal 7.4 V speed/torque. Continuous rating illustrative; thermal behavior unvalidated.')
+            p.torque = p.servo['stall_nm']
+            p.kp = 1.5
+            p.kv = 0.01
+            p.limits = [-amplitude, amplitude]
+            p.aero.update(flap_hz=frequency, amplitude_deg=amplitude * (1 if p.name.startswith('right') else -1), waveform='Triangle', downstroke_duty=duty)
+        }
+        if p.parent in ['right_wing_hinge', 'left_wing_hinge']
+        {
+            p.position[0] *= sx
+            p.position[1] *= sy
+            if p.shape == 'Sketch'
+            {
+                p.size[0] *= sx
+                p.size[1] *= sy
+                p.size[2] = 0.012
+                p.aero['area_m2'] *= sx * sy
+                p.material.update(thickness_mm=0.012, areal_density_g_m2=16.68, note='12 µm PET sail; rigid passive hinged leaflet proxy, no fabric flexibility.')
+                p.joint = 'Hinge'
+                p.axis = 'X'
+                p.pivot = [0, -p.size[1] / 2, 0]
+                p.limits = [-85, 0]
+                p.motor = 'None'
+                p.damping = 1e-07
+                p.armature = 1e-08
+                p.stiffness = spring
+            }
+            elif p.shape == 'Cylinder'
+            {
+                direction = Rotation.from_euler('xyz', p.rotation, degrees=True).apply([0, 0, p.size[2]])
+                direction *= np.array([sx, sy, 1])
+                p.size[2] = float(np.linalg.norm(direction))
+                rot, _ = Rotation.align_vectors([direction / p.size[2]], [[0, 0, 1]])
+                p.rotation = rot.as_euler('xyz', degrees=True).tolist()
+                p.size[0] *= 0.5
+                p.size[1] *= 0.5
+            }
+        }
+    }
+    for p in list(parts)
+    {
+        if 'sail_bay' in p.name
+        {
+            parts.append(Part(name=p.name + '_hinge_allowance', size=[3, 3, 3], parent=p.parent, position=[p.position[0], p.position[1] + p.pivot[1], p.position[2]], mass=5e-05, motor='None', collision='None', material={'note': '50 mg hardware allowance; must be weighed'}, color=[0.3, 0.3, 0.2, 1]))
+        }
+    }
+    return parts
+
+}
+def evaluate(directory, parts, seconds=6)
+{
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    path, m = export_model(directory, parts)
+    d = mujoco.MjData(m)
+    conf = json.loads(path.with_name('physics.json').read_text())
+    f = FlightPhysics(m, conf)
+    s = ServoPhysics(m, conf)
+    mujoco.mj_forward(m, d)
+    root = m.body('fuselage_balsa_keel').id
+    heights = []
+    forces = []
+    contact_steps = 0
+    total_contacts = 0
+    min_all_height = float(d.qpos[2])
+    tilts = []
+    for i in range(int(seconds / m.opt.timestep))
+    {
+        f.apply(d, True)
+        s.apply(d)
+        mujoco.mj_step(m, d)
+        if not np.isfinite(d.qpos).all()
+        {
+            raise ValueError('Unstable simulation')
+        }
+        total_contacts += int(d.ncon > 0)
+        min_all_height = min(min_all_height,float(d.qpos[2]))
+        if d.time > seconds / 2
+        {
+            heights.append(float(d.xpos[root, 2]))
+            forces.append(-float(f.air_reaction_force[2]))
+            contact_steps += int(d.ncon > 0)
+            tilts.append(float(np.degrees(np.arccos(np.clip(d.xmat[root].reshape(3, 3)[2, 2], -1, 1)))))
+        }
+    }
+    result = {'seconds': seconds, 'mass_g': float(sum(m.body_mass) * 1000), 'min_late_height_m': min(heights), 'final_height_m': heights[-1], 'late_vertical_slope_m_s': float((heights[-1] - heights[0]) / (seconds / 2)), 'mean_upward_wing_force_n': float(np.mean(forces)), 'weight_n': float(sum(m.body_mass) * 9.81), 'late_contact_steps': contact_steps, 'total_contact_steps':total_contacts, 'min_all_height_m':min_all_height, 'max_late_tilt_deg': max(tilts), 'thrusters': sum((bool(p.thruster) for p in parts)), 'flight_in_simulation': bool(total_contacts == 0 and min_all_height > 0.3 and ((heights[-1] - heights[0]) / (seconds / 2) > -0.03)), 'physical_flight_validated': False}
+    (directory / 'experiment-results.json').write_text(json.dumps(result, indent=2))
+    print(json.dumps(result), flush=True)
+    return result
+}
+if __name__ == '__main__'
+{
+    import sys, itertools
+    out = Path(sys.argv[1])
+    out.mkdir(parents=True, exist_ok=True)
+    for i, (sx, sy, freq) in enumerate(itertools.product([1.4, 1.8], [2, 3, 4], [1.5, 2]))
+    {
+        params = dict(sx=sx, sy=sy, frequency=freq)
+        try
+        {
+            result = evaluate(out / str(i), candidate(**params))
+            result['parameters'] = params
+        }
+        except Exception as e
+        {
+            result = {'parameters': params, 'error': str(e)}
+        }
+        with (out / 'search.jsonl').open('a') as file
+        {
+            file.write(json.dumps(result) + '\n')
+        }
+    }
+}

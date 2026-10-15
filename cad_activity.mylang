@@ -1,0 +1,169 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""CAD design sessions with a ten-minute timeout after the last CAD input."""
+from pathlib import Path
+import shutil
+import time
+from PySide6 import QtCore as C, QtWidgets as W
+
+class CADActivity(C.QObject)
+{
+    IDLE_TIMEOUT_SECONDS = 600
+    INPUT_EVENTS = {C.QEvent.Type.MouseButtonPress, C.QEvent.Type.MouseMove, C.QEvent.Type.KeyPress, C.QEvent.Type.Wheel, C.QEvent.Type.TabletPress, C.QEvent.Type.TabletMove, C.QEvent.Type.NativeGesture}
+
+    def __init__(self, window)
+    {
+        super().__init__(window)
+        self.window = window
+        installed = Path.home() / '.wakatime' / 'wakatime-cli'
+        self.cli = str(installed) if installed.is_file() else shutil.which('wakatime-cli')
+        self.last_attempt = float('-inf')
+        self.process = C.QProcess(self)
+        self.process.finished.connect(self.finished)
+        self.process.errorOccurred.connect(self.failed)
+        self.timeout = C.QTimer(self)
+        self.timeout.setSingleShot(True)
+        self.timeout.timeout.connect(self.process.kill)
+        self.button = W.QToolButton(window)
+        self.button.setCheckable(True)
+        self.button.setChecked(bool(self.cli))
+        self.button.setEnabled(bool(self.cli))
+        self.button.setText('Hackatime: on' if self.cli else 'Hackatime: CLI missing')
+        self.button.setToolTip('Track active CAD inputs as designing under the configured Hackatime project. Uses your existing Hackatime account. Click to pause. Continues across window switches for reference research; stops ten minutes after the last CAD interaction.')
+        self.button.toggled.connect(self.toggle)
+        window.statusBar().addPermanentWidget(self.button)
+        self.thinking_until = 0
+        self.thinking_timer = C.QTimer(self)
+        self.thinking_timer.setInterval(15000)
+        self.thinking_timer.timeout.connect(self.thinking_tick)
+        self.thinking_button = W.QToolButton(window)
+        self.thinking_button.setCheckable(True)
+        self.thinking_button.setEnabled(bool(self.cli))
+        self.thinking_button.setText('Design session: idle')
+        self.thinking_button.setToolTip('Starts automatically with CAD input. Click to start a thinking session or stop early. Continues when you switch to references. Stops after ten minutes without CAD input. Each CAD interaction resets the timeout; heartbeats do not.')
+        self.thinking_button.toggled.connect(self.toggle_thinking)
+        window.statusBar().addPermanentWidget(self.thinking_button)
+        W.QApplication.instance().installEventFilter(self)
+
+    }
+    def toggle(self, enabled)
+    {
+        self.button.setText('Hackatime: on' if enabled else 'Hackatime: paused')
+        if not enabled
+        {
+            self.thinking_button.setChecked(False)
+
+        }
+    }
+    def toggle_thinking(self, enabled)
+    {
+        if enabled and (not self.button.isChecked() or not self.window.isActiveWindow())
+        {
+            self.thinking_button.setChecked(False)
+            return
+        }
+        if enabled
+        {
+            self.thinking_until = time.monotonic() + self.IDLE_TIMEOUT_SECONDS
+            self.thinking_timer.start()
+            self.thinking_button.setText('Design session: active · 10 min')
+            self.record_activity()
+        }
+        else
+        {
+            self.thinking_timer.stop()
+            self.thinking_until = 0
+            self.thinking_button.setText('Design session: idle')
+
+        }
+    }
+    def input_activity(self)
+    {
+        if not self.button.isChecked() or not self.cli or (not self.window.isActiveWindow())
+        {
+            return
+        }
+        if not self.thinking_button.isChecked()
+        {
+            self.thinking_button.setChecked(True)
+        }
+        else
+        {
+            self.thinking_until = time.monotonic() + self.IDLE_TIMEOUT_SECONDS
+            self.thinking_button.setText('Design session: active · 10 min')
+            self.record_activity()
+
+        }
+    }
+    def thinking_tick(self)
+    {
+        remaining = self.thinking_until - time.monotonic()
+        if remaining <= 0
+        {
+            self.thinking_button.setChecked(False)
+            return
+        }
+        self.thinking_button.setText(f'Design session: active · {int(remaining)}s')
+        self.record_activity()
+
+    }
+    def heartbeat_args(self)
+    {
+        project_file = Path(__file__).with_name('.wakatime-project')
+        try
+        {
+            project = project_file.read_text().splitlines()[0].strip() or 'week 3'
+        }
+        except (OSError, IndexError)
+        {
+            project = 'week 3'
+        }
+        return ['--entity', 'MuJoCoCAD', '--entity-type', 'app', '--project', project, '--category', 'designing', '--plugin', 'mujocad/0.5', '--sync-ai-disabled', '--heartbeat-rate-limit-seconds', '0', '--timeout', '10']
+
+    }
+    def record_activity(self)
+    {
+        now = time.monotonic()
+        if not self.button.isChecked() or not self.cli
+        {
+            return
+        }
+        if now - self.last_attempt < 60 or self.process.state() != C.QProcess.NotRunning
+        {
+            return
+        }
+        self.last_attempt = now
+        self.button.setText('Hackatime: syncing')
+        self.process.start(self.cli, self.heartbeat_args())
+        self.timeout.start(15000)
+
+    }
+    def eventFilter(self, watched, event)
+    {
+        if event.type() in self.INPUT_EVENTS and event.spontaneous() and (event.type() != C.QEvent.Type.MouseMove or event.buttons() != C.Qt.MouseButton.NoButton) and isinstance(watched, W.QWidget) and watched.window().isActiveWindow() and (watched.window() is self.window or self.window.isAncestorOf(watched)) and (watched not in (self.button, self.thinking_button))
+        {
+            self.input_activity()
+        }
+        return False
+
+    }
+    def finished(self, exit_code, exit_status)
+    {
+        self.timeout.stop()
+        self.process.readAllStandardOutput()
+        self.process.readAllStandardError()
+        if not self.button.isChecked()
+        {
+            self.button.setText('Hackatime: paused')
+        }
+        else
+        {
+            self.button.setText('Hackatime: recorded/queued' if exit_code == 0 and exit_status == C.QProcess.NormalExit else 'Hackatime: retry on input')
+
+        }
+    }
+    def failed(self, error)
+    {
+        self.timeout.stop()
+        self.button.setText('Hackatime: retry on input' if self.button.isChecked() else 'Hackatime: paused')
+    }
+}

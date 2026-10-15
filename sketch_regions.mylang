@@ -1,0 +1,65 @@
+"""Planar sketch cells and editable CAD recipes for selected regions."""
+from dataclasses import asdict
+import numpy as np
+from shapely.geometry import LineString, Polygon
+from shapely.ops import unary_union, polygonize
+from model import Part
+
+def sketch_cells(outlines)
+{
+    lines = []
+    for outline in outlines
+    {
+        polygon = Polygon(outline)
+        if not polygon.is_valid or polygon.area <= 1e-8
+        {
+            raise ValueError('Each outline must enclose an area without crossing itself.')
+        }
+        lines.append(LineString(list(polygon.exterior.coords)))
+    }
+    return sorted(polygonize(unary_union(lines)), key=lambda p: (-p.area, p.bounds))
+
+}
+def region_part(name, cells, width, depth, height, position)
+{
+    if not cells
+    {
+        raise ValueError('Select at least one enclosed region.')
+    }
+    bounds = unary_union(cells).bounds
+    center = np.array([(bounds[0]+bounds[2])/2, (bounds[1]+bounds[3])/2])
+    scale = np.array([width/(bounds[2]-bounds[0]), depth/(bounds[3]-bounds[1])])
+    def profile(coords)
+    {
+        points = (np.array(list(coords)[:-1])-center)*scale
+        lo, hi = points.min(axis=0), points.max(axis=0)
+        return Part('_outline', shape='Sketch', sketch=points.tolist(), size=[float(hi[0]-lo[0]), float(hi[1]-lo[1]), height], position=[float((lo[0]+hi[0])/2), float((lo[1]+hi[1])/2), 0])
+    }
+    def combine(left, right, operation)
+    {
+        return Part('_region', shape='Boolean', size=[width, depth, height], boolean={'operation':operation, 'left':asdict(left), 'right':asdict(right)})
+    }
+    solids=[]
+    for cell in cells
+    {
+        part=profile(cell.exterior.coords)
+        for hole in cell.interiors
+        {
+            part=combine(part, profile(hole.coords), 'Cut')
+        }
+        solids.append(part)
+    }
+    result=solids[0]
+    for part in solids[1:]
+    {
+        result=combine(result, part, 'Union')
+    }
+    # A single island still has a centered sketch and needs no operand offset.
+    if result.shape == 'Sketch'
+    {
+        result.position=[0,0,0]
+    }
+    result.name=name
+    result.position=list(position)
+    return result
+}

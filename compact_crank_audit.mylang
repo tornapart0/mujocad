@@ -1,0 +1,54 @@
+"""Reproducible free-body ground tests. Failure is saved, never relabeled as flight."""
+from pathlib import Path
+import json,math,numpy as np
+from ground_flight_training import GroundFlightTask
+
+def run(folder)
+{
+    folder=Path(folder)
+    results=[]
+    for seed in [101,202,303]
+    {
+        for command_hz in [2.,4.,6.]
+        {
+            e=GroundFlightTask(folder/'bench-task.json')
+            e.config['randomize_start']=True
+            e.reset(seed=seed)
+            height=-math.inf
+            airborne=0.
+            upward=[]
+            maximum_error=0.
+            stroke=[]
+            initial_velocity=float(np.linalg.norm(e.data.qvel))
+            j=e.model.joint('right_wing_rocker_joint').qposadr[0]
+            crank=e.model.joint('drive_crank_joint').qposadr[0]
+            for _ in range(e.max_steps)
+            {
+                action=np.zeros(e.actions)
+                action[0]=command_hz/4-1
+                _,_,done,timeout,info=e.step(action)
+                height=max(height,info['height_gain_m'])
+                airborne=max(airborne,info['airborne_seconds'])
+                upward.append(info['wing_upward_force_n'])
+                maximum_error=max(maximum_error,float(np.max(np.abs(e.data.efc_pos[:9]))))
+                stroke.append(float(e.data.qpos[j]))
+                if done or timeout
+                {
+                    break
+                }
+            }
+            row={'seed':seed,'command_frequency_hz':command_hz,'actual_seconds':float(e.data.time),'zero_start_velocity':initial_velocity==0,'maximum_height_gain_m':height,'maximum_airborne_seconds':airborne,'mean_wing_upward_force_n':float(np.mean(upward)),'weight_n':info['weight_n'],'crank_revolutions':float(e.data.qpos[crank]/(2*math.pi)),'wing_range_deg':np.degrees([min(stroke),max(stroke)]).tolist(),'maximum_loop_error_m':maximum_error,'servo_readings':e.servos.readings(e.data),'last_info':info,'success':bool(info['is_success'])}
+            row.update(confined_flight=e.confined,maximum_horizontal_drift_m=e.maximum_horizontal_seen)
+            results.append(row)
+            print(seed,command_hz,'airborne',airborne,'height',height,'revolutions',row['crank_revolutions'],flush=True)
+            report={'protocol':'Zero velocity, Earth gravity, physical floor/pads, passive wings, motor torque-speed limits. Held-out seeds with +0..5% mass, -0..5% supply and -0..10% aerodynamic coefficient. No injected starting motion or lift.','required_continuous_airborne_s':20,'flight_success_count':sum(r['success'] for r in results),'physical_flight_validated':False,'model_calibrated':False,'results':results}
+            (folder/'ground-audit.json').write_text(json.dumps(report,indent=2))
+        }
+    }
+    return report
+}
+if __name__=='__main__'
+{
+    import sys
+    run(sys.argv[1])
+}

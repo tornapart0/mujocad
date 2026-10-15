@@ -1,0 +1,57 @@
+"""Wider root mounting with explicit cross-spar mass and relocated shafts."""
+from pathlib import Path
+from copy import deepcopy
+import json
+from model import Part,load_project,save_project,export_model
+from ornithopter_gait_search import FixtureGait
+from prototype_validation import validate
+
+def main()
+{
+    out=Path('outputs/Prototype-Clearance-Rearmount')
+    out.mkdir(parents=True,exist_ok=True)
+    values=json.loads(Path('outputs/Prototype-Feather90/gait-results.json').read_text())['best']['parameters']
+    reports=[]
+    for gap in [100,150,200]
+    {
+        parts=load_project('outputs/Overnight-Morphology/9/candidate.mjcad')
+        for p in parts
+        {
+            if p.name.endswith('_wing_hinge')
+            {
+                p.position[0]=gap*(1 if p.name.startswith('right') else -1)
+                p.pivot[1]=235
+                p.aero.update(flap_hz=values[0],amplitude_deg=values[1]*(1 if p.name.startswith('right') else -1),downstroke_duty=values[2])
+            }
+            elif p.name.endswith('_torque_shaft')
+            {
+                p.position[0]=gap*(1 if p.name.startswith('right') else -1)
+                p.position[1]=-35+235/2
+                p.size[2]=235
+            }
+            elif p.name.endswith('_wing_pitch')
+            {
+                p.limits=[-90,0]
+                p.aero.update(flap_hz=values[0],amplitude_deg=-values[3],phase_deg=values[4],downstroke_duty=values[2])
+            }
+        }
+        parts.append(Part(name='carbon_motor_mount_cross_spar',parent='fuselage_balsa_keel',shape='Cylinder',size=[2,2,2*gap],position=[0,200,8],rotation=[0,90,0],density=1330,motor='None',collision='Auto',material={'note':'Solid carbon/epoxy cross-spar; bearings, joint fasteners and structural strength require hardware validation.'}))
+        folder=out/str(gap)
+        folder.mkdir(parents=True,exist_ok=True)
+        save_project(folder/'candidate.mjcad',parts)
+        fixture=deepcopy(parts)
+        next(p for p in fixture if p.name=='fuselage_balsa_keel').joint='Fixed'
+        export_model(folder/'fixture',fixture)
+        score,report=FixtureGait(folder/'fixture').score(values)
+        report.update(root_half_spacing_mm=gap,folder=str(folder))
+        export_model(folder/'free-body',parts)
+        report['free_body']=validate(folder/'free-body',values)
+        reports.append(report)
+        (out/'results.json').write_text(json.dumps(reports,indent=2))
+        print(json.dumps({'gap_mm':gap,'lift_to_weight':score,'trials':report['free_body']['trials']}),flush=True)
+    }
+}
+if __name__=='__main__'
+{
+    main()
+}

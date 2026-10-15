@@ -1,0 +1,272 @@
+"""Visual rigging, scene environments, routed tendons and wing/thrust settings."""
+from copy import deepcopy
+import numpy as np
+from PySide6 import QtWidgets as W, QtCore as C
+from physics_features import PRESETS,environment,rig_parts,tendons
+from model import world_matrix,validate
+
+def number(form,label,value,lo=0,hi=100000,decimals=4)
+{
+    spin=W.QDoubleSpinBox();spin.setRange(lo,hi);spin.setDecimals(decimals);spin.setValue(value);form.addRow(label,spin);return spin
+
+}
+def vector(form,label,values,lo=-100000,hi=100000)
+{
+    widget=W.QWidget();layout=W.QHBoxLayout(widget);result=[]
+    for axis,value in zip('XYZ',values)
+    {
+        spin=W.QDoubleSpinBox();spin.setRange(lo,hi);spin.setDecimals(3);spin.setPrefix(axis+' ');spin.setValue(value);layout.addWidget(spin);result.append(spin)
+    }
+    form.addRow(label,widget);return result
+
+}
+def dialog(editor,title)
+{
+    window=W.QDialog(editor);window.setWindowTitle(title);window.resize(680,620);layout=W.QVBoxLayout(window)
+    scroll = W.QScrollArea()
+    scroll.setWidgetResizable(True)
+    scroll.setHorizontalScrollBarPolicy(C.Qt.ScrollBarAlwaysOff)
+    container = W.QWidget()
+    form = W.QFormLayout(container)
+    scroll.setWidget(container)
+    layout.addWidget(scroll, 1)
+    buttons=W.QDialogButtonBox(W.QDialogButtonBox.Ok|W.QDialogButtonBox.Cancel);buttons.accepted.connect(window.accept);buttons.rejected.connect(window.reject);layout.addWidget(buttons)
+    return window,form,layout
+
+}
+def commit(editor,parts,message)
+{
+    try
+    {
+        validate(parts)
+    }
+    except Exception as error
+    {
+        editor.error(str(error));return
+    }
+    editor.remember();editor.parts=parts;editor.refresh();editor.statusBar().showMessage(message)
+
+}
+def edit_environment(editor)
+{
+    current=environment(editor.parts);window,form,layout=dialog(editor,'Simulation environment')
+    preset=W.QComboBox();preset.addItems([*PRESETS,'Custom']);preset.setCurrentText(current.get('preset','Custom'));form.addRow('Physics preset',preset)
+    gravity=vector(form,'Gravity · m/s²',current['gravity']);wind=vector(form,'Wind / medium velocity · m/s',current['wind'])
+    density=number(form,'Medium density · kg/m³',current['density']);viscosity=number(form,'Medium viscosity · Pa·s',current['viscosity'],0,100,6)
+    timestep=number(form,'Simulation timestep · s',current['timestep'],.0001,.02,4)
+    ground=W.QCheckBox('Solid ground at Z = 0');ground.setChecked(current['ground']);form.addRow(ground)
+    release=W.QCheckBox('Release fixed assembly roots so the robot can drift');form.addRow(release)
+    note=W.QLabel('Space uses local microgravity and vacuum, with no ground. Existing joints and motors still work. Water adds approximate drag; buoyancy and orbital motion are not modeled.');note.setWordWrap(True);form.addRow(note)
+    def choose(name)
+    {
+        if name not in PRESETS
+        {
+            return
+        }
+        values=PRESETS[name]
+        for spin,value in zip(gravity,values['gravity'])
+        {
+            spin.setValue(value)
+        }
+        for spin,value in zip(wind,values['wind'])
+        {
+            spin.setValue(value)
+        }
+        density.setValue(values['density']);viscosity.setValue(values['viscosity']);timestep.setValue(values['timestep']);ground.setChecked(values['ground']);release.setChecked(name=='Space · microgravity')
+    }
+    preset.currentTextChanged.connect(choose)
+    if window.exec()!=W.QDialog.Accepted
+    {
+        return
+    }
+    values={'preset':preset.currentText(),'gravity':[s.value() for s in gravity],'wind':[s.value() for s in wind],'density':density.value(),'viscosity':viscosity.value(),'timestep':timestep.value(),'ground':ground.isChecked()}
+    parts=deepcopy(editor.parts)
+    for part in parts
+    {
+        part.environment=deepcopy(values)
+        if release.isChecked() and not part.parent and part.joint=='Fixed'
+        {
+            part.joint='Free'
+        }
+    }
+    commit(editor,parts,'Environment applied to the whole scene · save or click Simulate')
+
+}
+def edit_rig(editor)
+{
+    if not editor.parts
+    {
+        return
+    }
+    window,form,layout=dialog(editor,'Rig parts · joints and motors')
+    child=W.QComboBox();child.addItems([p.name for p in editor.parts]);child.setCurrentIndex(editor.selected);form.addRow('Moving part',child)
+    parent=W.QComboBox();parent.addItem('World','');
+    for part in editor.parts
+    {
+        parent.addItem(part.name,part.name)
+    }
+    active=editor.parts[editor.selected];parent.setCurrentIndex(max(0,parent.findData(active.parent)));form.addRow('Attach to',parent)
+    kind=W.QComboBox();kind.addItems(['Fixed','Rigid screw M3','Rigid screw M4','Hinge','Slide','Ball','Free']);kind.setCurrentText(active.joint);form.addRow('Joint type',kind)
+    axis=W.QComboBox();axis.addItems(['X','Y','Z']);axis.setCurrentText(active.axis);form.addRow('Axis in moving part coordinates',axis)
+    world=world_matrix(active,editor.parts);pivot=vector(form,'Pivot in world coordinates · mm',(world@np.r_[active.pivot,1])[:3])
+    motor=W.QComboBox();motor.addItems(['None','Torque','Position','Velocity']);motor.setCurrentText(active.motor);form.addRow('Motor control',motor)
+    lower=number(form,'Lower limit · degrees / mm',active.limits[0],-10000,10000);upper=number(form,'Upper limit · degrees / mm',active.limits[1],-10000,10000)
+    strength=number(form,'Force limit · Nm / N',active.torque,.001,10000)
+    target=number(form,'Initial target · degrees / mm / torque',active.control,-10000,10000)
+    note=W.QLabel('The rig keeps the part in its current world position. Free creates a floating body attached to World. For a wing hinge, select Position control and set the travel range before configuring flapping.');note.setWordWrap(True);form.addRow(note)
+    if window.exec()!=W.QDialog.Accepted
+    {
+        return
+    }
+    try
+    {
+        parts=rig_parts(editor.parts,parent.currentData(),child.currentText(),kind.currentText(),axis.currentText(),[s.value() for s in pivot],motor.currentText())
+        part=next(p for p in parts if p.name==child.currentText());part.limits=[lower.value(),upper.value()];part.torque=strength.value();part.control=target.value()
+    }
+    except Exception as error
+    {
+        editor.error(str(error));return
+    }
+    from hardware import ensure_screw
+    ensure_screw(part,parts)
+    commit(editor,parts,'Rig applied · joint anchor and axis are visible in the Joint tab')
+    editor.selected=next(i for i,p in enumerate(editor.parts) if p.name==child.currentText());editor.list.setCurrentRow(editor.selected);editor.tabs.setCurrentIndex(1)
+
+}
+def edit_tendon(editor,as_spring=False)
+{
+    if len(editor.parts)<2
+    {
+        editor.error('Add at least two parts before routing a tendon.');return
+    }
+    existing=tendons(editor.parts)
+    choices=['New tendon',*[t['name'] for t in existing]]
+    choice,ok=('New tendon',True) if as_spring else W.QInputDialog.getItem(editor,'Tendons','Create or edit a routed cable',choices,0,False)
+    if not ok
+    {
+        return
+    }
+    cable=next((t for t in existing if t['name']==choice),None)
+    rows=editor.selected_rows();rows=rows if len(rows)>=2 else [0,editor.selected if editor.selected else 1]
+    default={'name':'tendon_'+str(len(existing)+1),'points':[{'body':editor.parts[i].name,'position':[0,0,0]} for i in rows],'rest_mm':100,'stiffness':0,'damping':.1,'force':10,'kp':100,'target':2,'mode':'Pull force'}
+    if as_spring
+    {
+        default['mode']='Passive spring';default['stiffness']=100;default['attachment_hardware']=True
+        points=[(world_matrix(editor.parts[i],editor.parts)@np.r_[0,0,0,1])[:3] for i in rows]
+        default['rest_mm']=sum(float(np.linalg.norm(b-a)) for a,b in zip(points,points[1:]))
+    }
+    cable=deepcopy(cable or default);window,form,layout=dialog(editor,'Tendon route and controller')
+    name=W.QLineEdit(cable['name']);form.addRow('Tendon name',name)
+    diameter=number(form,'Cable diameter · mm',cable.get('diameter_mm',1),.1,10)
+    density=number(form,'Cable density · kg/m³',cable.get('density',970),1,10000)
+    hardware=W.QCheckBox('Add attachment loops and end knots');hardware.setChecked(cable.get('attachment_hardware',False));form.addRow(hardware)
+    note=W.QLabel('First and last points are tied ends. Intermediate points are ideal frictionless guides fixed to their chosen bodies: add points at each entry and exit to route through a body. Cut the matching holes in CAD. The simulated cable pulls but cannot push. Loops and knots add mass and mark attachment locations; knot slippage, guide friction, cable collision and breaking strength are not modeled. Cable mass is distributed among route points using the saved route length.')
+    note.setWordWrap(True);form.addRow(note)
+    table=W.QTableWidget(0,4);table.setHorizontalHeaderLabels(['Attachment part','X · mm','Y · mm','Z · mm']);table.setMinimumHeight(170);form.addRow('Route order',table)
+    def add_point(point=None)
+    {
+        point=point or {'body':editor.parts[editor.selected].name,'position':[0,0,0]};row=table.rowCount();table.insertRow(row)
+        body=W.QComboBox();body.addItems([p.name for p in editor.parts]);body.setCurrentText(point['body']);table.setCellWidget(row,0,body)
+        for col,value in enumerate(point['position'],1)
+        {
+            spin=W.QDoubleSpinBox();spin.setRange(-10000,10000);spin.setDecimals(2);spin.setValue(value);table.setCellWidget(row,col,spin)
+        }
+    }
+    for point in cable['points']
+    {
+        add_point(point)
+    }
+    add=W.QPushButton('Add routing point');add.clicked.connect(lambda:add_point());form.addRow(add)
+    remove=W.QPushButton('Remove selected routing point');remove.clicked.connect(lambda:table.removeRow(table.currentRow()) if table.currentRow()>=0 else None);form.addRow(remove)
+    mode=W.QComboBox();mode.addItems(['Passive spring','Pull force','Length servo']);mode.setCurrentText(cable['mode']);form.addRow('Control system',mode)
+    fields={}
+    for key,label in [('rest_mm','Slack / rest length · mm'),('stiffness','Spring stiffness · N/m'),('damping','Cable damping'),('force','Maximum pulling force · N'),('kp','Length servo gain'),('target','Target · N for pull / mm for length')]
+    {
+        fields[key]=number(form,label,cable[key],0,100000)
+    }
+    deleted=[False]
+    if choice!='New tendon'
+    {
+        button=W.QPushButton('Delete tendon');button.clicked.connect(lambda:(deleted.__setitem__(0,True),window.accept()));form.addRow(button)
+    }
+    if window.exec()!=W.QDialog.Accepted
+    {
+        return
+    }
+    parts=deepcopy(editor.parts)
+    for part in parts
+    {
+        part.tendons=[t for t in part.tendons if t['name']!=choice]
+    }
+    if not deleted[0]
+    {
+        cable={'name':name.text().strip(),'mode':mode.currentText(),'points':[{'body':table.cellWidget(row,0).currentText(),'position':[table.cellWidget(row,col).value() for col in range(1,4)]} for row in range(table.rowCount())],**{key:spin.value() for key,spin in fields.items()}}
+        cable.update(diameter_mm=diameter.value(),density=density.value(),attachment_hardware=hardware.isChecked())
+        parts[0].tendons.append(cable)
+    from hardware import sync_cable_hardware
+    sync_cable_hardware(parts)
+    }
+    commit(editor,parts,'Tendon saved · cable and motor controls appear in simulation')
+
+}
+def edit_flight(editor)
+{
+    if not editor.parts
+    {
+        return
+    }
+    part=editor.parts[editor.selected];window,form,layout=dialog(editor,'Wing forces and thrust · '+part.name)
+    wing=W.QCheckBox('This part is an aerodynamic wing');wing.setChecked(bool(part.aero));form.addRow(wing)
+    a=part.aero or {'area_m2':part.size[0]*part.size[1]*1e-6,'normal_coefficient':1.4,'upstroke_ratio':.15,'axis':'Z','flap_hz':0,'amplitude_deg':35,'phase_deg':0}
+    area=number(form,'Wing area · m²',a['area_m2'],.000001,100,6)
+    geometric=W.QCheckBox('Calculate wing area from the sketch')
+    geometric.setEnabled(part.shape=='Sketch' and not part.constraints)
+    geometric.setChecked(geometric.isEnabled() and (a.get('area_source')=='geometry' or not part.aero))
+    form.addRow(geometric)
+    def update_area()
+    {
+        area.setEnabled(not geometric.isChecked())
+        if geometric.isChecked()
+        {
+            from dataclasses import asdict
+            from sail_preview_export import profile
+            points=profile(asdict(part))
+            area.setValue(abs(sum(x[0]*y[1]-y[0]*x[1] for x,y in zip(points,points[1:]+points[:1])))/2)
+        }
+    }
+    geometric.toggled.connect(update_area)
+    update_area()
+    coefficient=number(form,'Normal force coefficient',a['normal_coefficient'],0,10)
+    feather=number(form,'Upstroke force fraction · 0–1',a['upstroke_ratio'],0,1)
+    normal=W.QComboBox();normal.addItems(['X','Y','Z']);normal.setCurrentText(a['axis']);form.addRow('Wing surface normal · local axis',normal)
+    frequency=number(form,'Automatic flapping · Hz (0 = manual)',a['flap_hz'],0,30)
+    amplitude=number(form,'Flap amplitude · degrees (negative mirrors)',a['amplitude_deg'],-90,90)
+    phase=number(form,'Phase offset · degrees',a['phase_deg'],-360,360)
+    thrust=W.QCheckBox('Add a controllable thruster');thrust.setChecked(bool(part.thruster));form.addRow(thrust)
+    t=part.thruster or {'axis':'Z','max_force':1,'initial':0}
+    axis=W.QComboBox();axis.addItems(['X','Y','Z']);axis.setCurrentText(t['axis']);form.addRow('Thrust direction · local positive axis',axis)
+    maximum=number(form,'Maximum thrust · N',t['max_force'],.000001,10000)
+    initial=number(form,'Initial thrust · N',t['initial'],0,10000)
+    note=W.QLabel('Automatic flapping needs a Hinge with Position control. Opposite signed amplitudes mirror two wings. Wing forces use a feathered normal-force approximation and vanish in vacuum. A Free root is required for lift-off. Thrusters work in air or space; their forces are adjustable in the simulator.');note.setWordWrap(True);form.addRow(note)
+    if window.exec()!=W.QDialog.Accepted
+    {
+        return
+    }
+    if wing.isChecked() and frequency.value()>0 and (part.joint!='Hinge' or part.motor!='Position')
+    {
+        editor.error('Rig this wing as a Hinge with a Position motor before enabling automatic flapping.');return
+    }
+    parts=deepcopy(editor.parts);p=parts[editor.selected]
+    p.aero={'area_m2':area.value(),'normal_coefficient':coefficient.value(),'upstroke_ratio':feather.value(),'axis':normal.currentText(),'flap_hz':frequency.value(),'amplitude_deg':amplitude.value(),'phase_deg':phase.value()} if wing.isChecked() else {}
+    if p.aero and geometric.isChecked()
+    {
+        if normal.currentText()!='Z'
+        {
+            editor.error('Sketch-derived wing area needs local Z as the surface normal.')
+            return
+        }
+        p.aero['area_source']='geometry'
+    }
+    p.thruster={'axis':axis.currentText(),'max_force':maximum.value(),'initial':initial.value()} if thrust.isChecked() else {}
+    commit(editor,parts,'Wing / thruster settings saved · Simulate applies forces; training uses agent motor control')
+}

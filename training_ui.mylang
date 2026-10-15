@@ -13,18 +13,8 @@ ROOT = Path(__file__).resolve().parent
 
 def runtime(watch=False)
 {
-    name = 'mjpython' if watch else 'python'
-    existing = ROOT.parent / 'IsaacLab-mlx-codex-mlx-foundation' / '.venv/bin' / name
-    if existing.exists()
-    {
-        return existing
-    }
-    own = ROOT / '.venv/bin' / name
-    if list((ROOT / '.venv/lib').glob('python*/site-packages/stable_baselines3')) and own.exists()
-    {
-        return own
-    }
-    raise ValueError('Training runtime is missing. Install requirements-training.txt into the CAD virtual environment.')
+    from runtime_paths import training_runtime
+    return training_runtime(ROOT,watch)
 
 }
 def process_environment()
@@ -69,11 +59,12 @@ class TrainingWizard(W.QWizard)
         description.setWordWrap(True)
         layout.addWidget(description)
         self.goal = W.QComboBox()
-        self.goal.addItems(['Move joints to a pose', 'Move a part to a point'])
+        self.goal.addItems(['Move joints to a pose', 'Move a part to a point', 'Take off from the ground and fly'])
         layout.addWidget(self.goal)
         layout.addWidget(W.QLabel('Motors the learner can control'))
         self.motors = W.QListWidget()
         layout.addWidget(self.motors, 1)
+        self.aux_drivers = {}
         for p in parts
         {
             if p.joint in ['Hinge', 'Slide', 'Ball'] and p.motor != 'None'
@@ -84,6 +75,19 @@ class TrainingWizard(W.QWizard)
                 item.setCheckState(C.Qt.Checked)
                 self.motors.addItem(item)
             }
+        }
+        from physics_features import tendons
+        auxiliary = [(p.name + '_thruster', p.name + ' · Thruster', [p.name]) for p in parts if p.thruster]
+        auxiliary += [(t['name'] + '_tendon_motor', t['name'] + ' · Tendon', [point['body'] for point in t['points']]) for t in tendons(parts) if t['mode'] != 'Passive spring']
+        for actuator, label, drivers in auxiliary
+        {
+            key = '@act:' + actuator
+            self.aux_drivers[key] = drivers
+            item = W.QListWidgetItem(label)
+            item.setData(C.Qt.UserRole, key)
+            item.setFlags(item.flags() | C.Qt.ItemIsUserCheckable)
+            item.setCheckState(C.Qt.Checked)
+            self.motors.addItem(item)
         }
         self.validation = W.QLabel()
         self.validation.setWordWrap(True)
@@ -148,6 +152,30 @@ class TrainingWizard(W.QWizard)
         rl.addWidget(note)
         rl.addStretch()
         self.target_stack.addWidget(reach)
+        flight_page=W.QWidget()
+        flight_form=W.QFormLayout(flight_page)
+        flight_note=W.QLabel('Ground is Z = 0; Y = 0 is the horizontal centre. Start on the landing pads with zero velocity. The servos learn a smooth gait across 1–3 Hz and 15–30 degree flap amplitude with 2 degrees of trim; their torque and speed limits still apply. Success requires lifting clear of the ground and staying airborne for at least 20 seconds; hops and falling from a raised start do not count. This remains an uncalibrated simulation.')
+        if any(p.scenario.get('kind')=='CompactCrankOrnithopter' for p in self.parts)
+        {
+            flight_note.setText('Start at rest on the stage, Z = 0. Training adjusts the shared crank motor speed and tail angle. The rods drive the wings through physical loop constraints; passive wing flex is not independently powered. Motor torque and no-load speed limits apply. Success requires lift-off and 20 continuous seconds airborne. This prototype has uncalibrated aerodynamics and is not proven to fly.')
+        }
+        if any(p.scenario.get('confined') for p in self.parts)
+        {
+            flight_note.setText('Confined flight: take off from the landing pads with no runway or throw. Training controls the crank motor, left and right wing incidence, and tail. Success requires 20 seconds airborne within 25 cm of the launch centre, no more than 15 degrees of tilt and 10 cm of height variation. Ground drift is limited to 5 cm. These are test limits, not a claim that this prototype is ready to fly in a classroom.')
+        }
+        flight_note.setWordWrap(True)
+        flight_form.addRow(flight_note)
+        self.takeoff_height=W.QDoubleSpinBox()
+        self.takeoff_height.setRange(50,1000)
+        self.takeoff_height.setValue(100)
+        self.takeoff_height.setSuffix(' mm above the resting body')
+        flight_form.addRow('Lift-off clearance',self.takeoff_height)
+        self.airborne_seconds=W.QDoubleSpinBox()
+        self.airborne_seconds.setRange(20,60)
+        self.airborne_seconds.setValue(20)
+        self.airborne_seconds.setSuffix(' seconds')
+        flight_form.addRow('Continuous airborne time',self.airborne_seconds)
+        self.target_stack.addWidget(flight_page)
         self.angle_tolerance = W.QDoubleSpinBox()
         self.angle_tolerance.setRange(0.1, 45)
         self.angle_tolerance.setValue(5)
@@ -188,11 +216,19 @@ class TrainingWizard(W.QWizard)
         form.addRow(note)
         self.addPage(run)
         self.tip.currentTextChanged.connect(lambda: self.target_page.completeChanged.emit())
+        self.airborne_seconds.valueChanged.connect(lambda: self.update_goal())
         if not self.pose_fields
         {
             self.goal.setCurrentIndex(1)
         }
         self.suggest_target()
+        if any(p.scenario.get('kind') in ['GroundOrnithopter','CompactCrankOrnithopter'] for p in self.parts)
+        {
+            self.goal.setCurrentIndex(2)
+            self.job_name.setText('Ornithopter ground takeoff')
+            self.seconds.setValue(30)
+            self.randomize.setText('Vary mass and supply voltage conservatively; always start at rest on the ground')
+        }
         self.goal_page.completeChanged.emit()
 
     }
@@ -209,6 +245,18 @@ class TrainingWizard(W.QWizard)
         {
             valid = valid and any((name in self.pose_fields for name in names))
         }
+        if self.goal.currentIndex()==2
+        {
+            required={'right_wing_hinge','left_wing_hinge','right_wing_pitch','left_wing_pitch'}
+            compact=next((p.scenario for p in self.parts if p.scenario.get('kind')=='CompactCrankOrnithopter'),None)
+            if compact
+            {
+                required={compact['drive'],compact['tail'],*compact.get('incidence_motors',[])}
+            }
+            valid=required.issubset(set(names)) and any(p.joint=='Free' and not p.parent for p in self.parts) and sum(p.name.endswith('_ground_pad') for p in self.parts)>=3 and not any(p.thruster for p in self.parts)
+            self.validation.setText('' if valid else 'Ground flight requires a free body, three landing pads, all wing-drive and tail/feather motors, and no thrusters.')
+            return valid
+        }
         self.validation.setText('' if valid else 'Choose at least one motor. Joint-pose goals need a hinge or slider motor.')
         return valid
 
@@ -217,6 +265,16 @@ class TrainingWizard(W.QWizard)
     {
         self.target_stack.setCurrentIndex(self.goal.currentIndex())
         self.angle_tolerance.setEnabled(self.goal.currentIndex() == 0)
+        self.distance_tolerance.setEnabled(self.goal.currentIndex() == 1)
+        if self.goal.currentIndex()==2
+        {
+            self.seconds.setMinimum(self.airborne_seconds.value()+4)
+            self.seconds.setValue(max(30,self.seconds.value()))
+        }
+        else
+        {
+            self.seconds.setMinimum(1)
+        }
         names = self.chosen_parts()
         for name, spin in self.pose_fields.items()
         {
@@ -227,6 +285,11 @@ class TrainingWizard(W.QWizard)
     }
     def target_valid(self)
     {
+        if self.goal.currentIndex()==2
+        {
+            self.target_warning.setText('')
+            return self.controls_valid() and self.seconds.value()>=self.airborne_seconds.value()+4
+        }
         if self.goal.currentIndex() == 0
         {
             return self.controls_valid()
@@ -252,7 +315,7 @@ class TrainingWizard(W.QWizard)
         {
             warning = 'This part is fixed to the world. Choose a part with a movable joint or floating parent.'
         }
-        elif not any((p.name in self.chosen_parts() for p in chain))
+        elif not any((p.name in self.chosen_parts() or any(p.name in self.aux_drivers.get(key, []) for key in self.chosen_parts()) for p in chain))
         {
             warning = 'The selected motors do not drive this part. Choose a motor in its parent chain.'
         }
@@ -355,8 +418,9 @@ class TrainingWizard(W.QWizard)
                 motors.extend([f'{p.name}_motor_{i}' for i in range(3)] if p.joint == 'Ball' else [f'{p.name}_motor'])
             }
         }
+        motors.extend([name[5:] for name in names if name.startswith('@act:')])
         targets = {p.name + '_joint': self.pose_fields[p.name].value() * (math.pi / 180 if p.joint == 'Hinge' else 0.001) for p in self.parts if p.name in names and p.name in self.pose_fields}
-        return {'version': 1, 'name': self.job_name.text().strip() or 'Robot training', 'model': 'robot.xml', 'goal': 'pose' if self.goal.currentIndex() == 0 else 'reach', 'motors': motors, 'joint_targets': targets, 'site': self.tip.currentText() + '_tip', 'target': [spin.value() * 0.001 for spin in self.xyz], 'angle_tolerance': self.angle_tolerance.value(), 'distance_tolerance_mm': self.distance_tolerance.value(), 'episode_seconds': self.seconds.value(), 'randomize_start': self.randomize.isChecked(), 'steps': self.duration.currentData()}
+        return {'version': 1, 'name': self.job_name.text().strip() or 'Robot training', 'model': 'robot.xml', 'goal': ['pose','reach','ground_flight'][self.goal.currentIndex()], 'takeoff_height_mm':self.takeoff_height.value(), 'airborne_seconds':self.airborne_seconds.value(), 'motors': motors, 'joint_targets': targets, 'site': self.tip.currentText() + '_tip', 'target': [spin.value() * 0.001 for spin in self.xyz], 'angle_tolerance': self.angle_tolerance.value(), 'distance_tolerance_mm': self.distance_tolerance.value(), 'episode_seconds': self.seconds.value(), 'randomize_start': self.randomize.isChecked(), 'steps': self.duration.currentData()}
 
     }
     def accept(self)
@@ -639,7 +703,7 @@ class TrainingLibrary(W.QDialog)
                 results = json.loads(results_file.read_text()) if results_file.exists() else {}
                 success = f"{results['success_rate']:.0%}" if 'success_rate' in results else 'Not trained yet'
                 updated = datetime.fromtimestamp(max(path.stat().st_mtime, results_file.stat().st_mtime if results_file.exists() else 0), ZoneInfo('America/New_York')).strftime('%b %d, %H:%M')
-                item = W.QTreeWidgetItem([str(config.get('name', 'Robot training')), {'pose': 'Joint pose', 'reach': 'Point reaching'}.get(config.get('goal'), 'Custom goal'), f"{results.get('total_steps', 0):,}", success, updated])
+                item = W.QTreeWidgetItem([str(config.get('name', 'Robot training')), {'pose': 'Joint pose', 'reach': 'Point reaching', 'ground_flight':'Ground takeoff + flight'}.get(config.get('goal'), 'Custom goal'), f"{results.get('total_steps', 0):,}", success, updated])
                 item.setData(0, C.Qt.UserRole, str(path))
                 self.list.addTopLevelItem(item)
             }

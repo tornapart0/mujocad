@@ -1,0 +1,32 @@
+"""Analytic rotating triangular plate checks for distributed force, moment and air reaction."""
+from pathlib import Path
+import sys
+import numpy as np
+import mujoco
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from flight_physics import FlightPhysics
+from sail_preview_export import wing_force_samples
+m=mujoco.MjModel.from_xml_string('''<mujoco><option gravity="0 0 0"/><worldbody><body name="wing" pos=".5 .5 0"><joint type="hinge" axis="0 1 0" pos="-.5 -.5 0"/><inertial mass="1" pos=".16666666666666667 -.16666666666666667 0" diaginertia=".1 .1 .1"/><geom type="sphere" size=".01" mass="0"/></body></worldbody></mujoco>''')
+d=mujoco.MjData(m)
+d.qvel[0]=1
+mujoco.mj_forward(m,d)
+samples=wing_force_samples({'sketch':[[0,0],[1000,0],[1000,1000]],'size':[1000,1000,1]})
+settings={'area_m2':.5,'normal_coefficient':1,'upstroke_ratio':1,'axis':'Z','flap_hz':0,'force_samples':samples}
+f=FlightPhysics(m,{'environment':{'density':2,'wind':[0,0,0]},'wings':[{'body':'wing','settings':settings}]})
+f.apply(d)
+b=m.body('wing').id
+# Integral x² over this triangle = 1/4 m⁴. Integral x³ = 1/5 m⁵.
+# At rho=2, C=1, omega=1: force=1/4 N, hinge moment=1/5 Nm.
+assert np.allclose(d.xfrc_applied[b,:3],[0,0,.25],atol=1e-12)
+assert np.allclose(d.xfrc_applied[b,3:],[.1-.25/3,-(.2-.25*2/3),0],atol=1e-12)
+assert np.allclose(f.air_reaction_force,[0,0,-.25],atol=1e-12)
+assert abs(f.air_power_w-.2)<1e-12
+# Doubling wing speed gives four times force; vacuum gives zero air reaction.
+d.qvel[0]=2
+mujoco.mj_forward(m,d)
+f.apply(d)
+assert abs(d.xfrc_applied[b,2]-1)<1e-12
+f.environment['density']=0
+f.apply(d)
+assert not np.any(d.xfrc_applied[b]) and not np.any(f.air_reaction_force)
+print('PASS: distributed triangular sail force, center-of-pressure torque, air momentum reaction, power, speed-squared scaling and vacuum')

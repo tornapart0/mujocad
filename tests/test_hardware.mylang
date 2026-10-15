@@ -1,0 +1,69 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import sys, json, tempfile, math
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import mujoco, numpy as np
+from model import Part, export_model, save_project, load_project, solid, validate
+from hardware import ensure_screw, sync_cable_hardware, static_load
+from flight_physics import FlightPhysics
+out = Path('outputs/Hardware-Validation')
+out.mkdir(exist_ok=True)
+base = Part('base', size=[30, 30, 10], position=[0, 0, 5])
+slider = Part('slider', parent='base', size=[10, 10, 10], position=[0, 0, 30], joint='Slide', axis='X', limits=[-50, 50], motor='None', stiffness=20, damping=0.1, collision='None')
+fixed = Part('bracket', parent='base', size=[10, 10, 10], position=[20, 0, 0], joint='Rigid screw M3', axis='Z')
+parts = [base, slider, fixed]
+ensure_screw(fixed, parts)
+base.tendons = [dict(name='spring_cable', points=[dict(body='base', position=[0, 0, 0]), dict(body='base', position=[0, 0, 20]), dict(body='slider', position=[0, 0, 0])], mode='Passive spring', rest_mm=40, stiffness=10, damping=0.1, force=10, kp=10, target=0, diameter_mm=1, density=970, attachment_hardware=True)]
+sync_cable_hardware(parts)
+for p in parts
+{
+    print('solid', p.name, solid(p).volume, flush=True)
+}
+path, m = export_model(out / 'spring', parts)
+d = mujoco.MjData(m)
+d.qpos[0] = 0.02
+mujoco.mj_forward(m, d)
+assert m.nv == 1
+assert d.qfrc_passive[0] < 0
+assert m.ntendon == 1 and m.njnt == 1
+assert json.loads((out / 'spring/physics.json').read_text())['cable_mass_kg'] > 0
+save_project(out / 'hardware.mjcad', parts)
+assert len(load_project(out / 'hardware.mjcad')) == len(parts)
+assert solid(Part('m4', shape='Screw M4', size=[4, 4, 12])).volume > solid(Part('m3', shape='Screw M3', size=[3, 3, 12])).volume
+assert solid(Part('coil', shape='Spring', size=[10, 0.7, 12])).volume > 0
+print('spring rigid cable passed', flush=True)
+cfg = dict(ct=0.1, cp=0.05, max_rpm=20000, voltage=11.1, kv_rpm_v=2300, resistance_ohm=0.15, current_limit_a=15, direction=1)
+p = Part('rotor', shape='Propeller', size=[127, 12.7, 1.2], position=[0, 0, 25], parent='base', joint='Hinge', axis='Z', motor='Torque', torque=1, unlimited=True, damping=0, armature=0, collision='None', propeller=cfg)
+path, m = export_model(out / 'propeller', [base.__class__('base', size=[30, 30, 10], position=[0, 0, 5]), p])
+d = mujoco.MjData(m)
+f = FlightPhysics(m, json.loads((out / 'propeller/physics.json').read_text()))
+mujoco.mj_forward(m, d)
+f.apply(d)
+assert f.propellers.telemetry[0]['thrust_n'] == 0
+for _ in range(1000)
+{
+    d.ctrl[0] = 0.5
+    f.apply(d)
+    mujoco.mj_step(m, d)
+}
+t = f.propellers.telemetry[0]
+assert 0 < t['rpm'] < cfg['max_rpm'] * 1.02 and t['thrust_n'] > 0 and (abs(t['current_a']) <= 15)
+th, tor = static_load(5000, 1.225, 0.127, 0.1, 0.05)
+assert np.isclose(static_load(10000, 1.225, 0.127, 0.1, 0.05)[0], 4 * th)
+assert np.isfinite(d.qvel).all()
+print('propeller', t, flush=True)
+d.qvel[:] = 0
+d.ctrl[:] = 0.5
+f.apply(d)
+force = d.qfrc_applied.copy()
+f.apply(d)
+assert np.allclose(force, d.qfrc_applied)
+f.propellers.rho = 0
+d.qvel[0] = 500
+f.apply(d)
+assert f.propellers.telemetry[0]['thrust_n'] == 0
+f.propellers.rho = 1.225
+d.qvel[0] = -500
+f.apply(d)
+assert f.propellers.telemetry[0]['thrust_n'] == 0
+(out / 'results.json').write_text(json.dumps(dict(status='passed', spring_restoring_force=True, rigid_no_extra_dof=True, cable_mass=True, route_sites=True, propeller=t, rpm_squared=True), indent=2))

@@ -1,0 +1,60 @@
+import sys, tempfile, json
+from pathlib import Path
+from copy import deepcopy
+import numpy as np, mujoco
+from model import Part, export_model, save_project, load_project
+from servo_models import PRESETS, ServoPhysics
+from servo_ui import apply_servo
+from build_materials import PRESETS as MATERIALS
+with tempfile.TemporaryDirectory() as folder
+{
+    folder = Path(folder)
+    base = Part('base', position=[0, 0, 250], collision='None')
+    arm = Part('arm', size=[120, 15, 10], mass=0.3, parent='base', position=[60, 0, 0], joint='Hinge', axis='Y', pivot=[-60, 0, 0], limits=[-80, 80], motor='Position', control=-30, kp=10, kv=0.15, collision='None')
+    _, baseline = export_model(folder / 'baseline', [base, arm])
+    baseline_mass = baseline.body_mass.sum()
+    specs = [name for name in PRESETS if 'vendor specs' in name or name.startswith('10 kg')]
+    errors = []
+    for index, name in enumerate(specs)
+    {
+        parts = deepcopy([base, arm])
+        apply_servo(parts[1], dict(PRESETS[name], profile=name))
+        path, m = export_model(folder / str(index), parts)
+        assert np.isclose(m.body_mass.sum() - baseline_mass, PRESETS[name]['mass_g'] * 0.001)
+        assert m.body_mass[m.body('base').id] > baseline.body_mass[baseline.body('base').id]
+        assert np.all(m.body_inertia[1:] > 0)
+        config = json.loads(path.with_name('physics.json').read_text())
+        servo = ServoPhysics(m, config)
+        d = mujoco.MjData(m)
+        d.ctrl[0] = np.radians(-30)
+        for _ in range(750)
+        {
+            servo.apply(d)
+            mujoco.mj_step(m, d)
+            assert m.actuator_forcerange[0, 0] - 1e-08 <= d.actuator_force[0] <= m.actuator_forcerange[0, 1] + 1e-08
+        }
+        error = abs(d.qpos[0] - np.radians(-30))
+        errors.append(error)
+        speed = np.radians(60 / PRESETS[name]['seconds_60'])
+        d.qvel[0] = speed * 0.5
+        servo.apply(d)
+        assert np.isclose(m.actuator_forcerange[0, 1], PRESETS[name]['stall_nm'] * 0.5)
+        save_project(folder / 'saved.mjcad', parts)
+        assert load_project(folder / 'saved.mjcad')[1].servo == parts[1].servo
+        assert path.with_name('servo_models.py').exists() and path.with_name('servo_catalog.json').exists()
+    }
+    assert errors[0] > errors[1] + 0.1, errors
+    print('PASS: servo housing mass/inertia is added to parent; torque falls with speed; weak servo fails the load that stronger servo moves', errors)
+    masses = {}
+    for name in ['Balsa · nominal 155 kg/m³', 'Aluminum 6061 · representative']
+    {
+        material = MATERIALS[name]
+        p = Part('cube', size=[100, 100, 100], density=material['density'], material={'name': name, 'source': material['source']})
+        path, m = export_model(folder / str(len(masses) + 10), [p])
+        masses[name] = m.body_mass[1]
+    }
+    assert np.isclose(masses['Balsa · nominal 155 kg/m³'], 0.155)
+    assert np.isclose(masses['Aluminum 6061 · representative'], 2.7)
+    print('PASS: material density changes real simulated mass')
+}
+print('ALL SERVO AND MATERIAL TESTS PASSED')

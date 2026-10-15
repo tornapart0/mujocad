@@ -1,0 +1,213 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""Editable sketch constraints and Boolean operand parameters."""
+from PySide6 import QtWidgets as W
+from constraints import KINDS, solve_sketch, validate_profile
+from model import Part, solid
+from dataclasses import asdict
+from copy import deepcopy
+
+class ConstraintEditor(W.QDialog)
+
+{
+    def __init__(self, points, constraints, parent=None)
+    {
+        super().__init__(parent)
+        self.setWindowTitle('Sketch constraints')
+        self.resize(740, 650)
+        self.points = deepcopy(points)
+        self.constraints = deepcopy(constraints)
+        layout = W.QVBoxLayout(self)
+        layout.addWidget(W.QLabel('Vertex numbers match the canvas. Lengths are mm; angles are degrees.'))
+        self.vertices = W.QTableWidget(len(points), 3)
+        self.vertices.setHorizontalHeaderLabels(['Vertex', 'X · mm', 'Y · mm'])
+        for i, p in enumerate(points)
+        {
+            for j, value in enumerate([i + 1, *p])
+            {
+                self.vertices.setItem(i, j, W.QTableWidgetItem(str(value)))
+            }
+        }
+        layout.addWidget(self.vertices, 1)
+        self.table = W.QTableWidget(0, 3)
+        self.table.setHorizontalHeaderLabels(['Constraint', 'Vertices (1-based)', 'Value'])
+        layout.addWidget(self.table, 1)
+        row = W.QHBoxLayout()
+        self.kind = W.QComboBox()
+        self.kind.addItems(KINDS)
+        row.addWidget(self.kind)
+        self.indices = W.QLineEdit('1,2')
+        row.addWidget(self.indices)
+        self.value = W.QDoubleSpinBox()
+        self.value.setRange(-10000, 10000)
+        self.value.setValue(50)
+        row.addWidget(self.value)
+        add = W.QPushButton('Add')
+        add.clicked.connect(self.add)
+        row.addWidget(add)
+        remove = W.QPushButton('Remove')
+        remove.clicked.connect(self.remove)
+        row.addWidget(remove)
+        layout.addLayout(row)
+        self.status = W.QLabel('Unconstrained sketches can change shape. Fix a point to anchor the profile.')
+        self.status.setWordWrap(True)
+        layout.addWidget(self.status)
+        self.show_constraints()
+        buttons = W.QDialogButtonBox(W.QDialogButtonBox.Ok | W.QDialogButtonBox.Cancel)
+        buttons.button(W.QDialogButtonBox.Ok).setText('Solve & apply')
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    }
+    def show_constraints(self)
+    {
+        self.table.setRowCount(len(self.constraints))
+        for i, c in enumerate(self.constraints)
+        {
+            for j, value in enumerate([c['kind'], ','.join((str(x + 1) for x in c['indices'])), c.get('value', 0)])
+            {
+                self.table.setItem(i, j, W.QTableWidgetItem(str(value)))
+
+            }
+        }
+    }
+    def read_points(self)
+    {
+        return [[float(self.vertices.item(i, j).text()) for j in [1, 2]] for i in range(self.vertices.rowCount())]
+
+    }
+    def read_constraints(self)
+    {
+        points = self.read_points()
+        out = []
+        for i in range(self.table.rowCount())
+        {
+            kind = self.table.item(i, 0).text()
+            ids = [int(x.strip()) - 1 for x in self.table.item(i, 1).text().split(',')]
+            value = float(self.table.item(i, 2).text())
+            c = {'kind': kind, 'indices': ids, 'value': value}
+            if kind == 'Fix point'
+            {
+                existing = self.constraints[i] if i < len(self.constraints) else {}
+                c['point'] = existing.get('point', points[ids[0]])
+            }
+            out.append(c)
+        }
+        return out
+
+    }
+    def add(self)
+    {
+        try
+        {
+            self.constraints = self.read_constraints()
+            ids = [int(x.strip()) - 1 for x in self.indices.text().split(',')]
+            c = {'kind': self.kind.currentText(), 'indices': ids, 'value': self.value.value()}
+            if any((i < 0 or i >= len(self.points) for i in ids))
+            {
+                raise ValueError('Use vertex numbers shown in the table.')
+            }
+            if c['kind'] == 'Fix point'
+            {
+                c['point'] = self.read_points()[ids[0]]
+            }
+            self.constraints.append(c)
+            self.show_constraints()
+        }
+        except Exception as e
+        {
+            W.QMessageBox.warning(self, 'Constraint', str(e))
+
+        }
+    }
+    def remove(self)
+    {
+        i = self.table.currentRow()
+        if i >= 0
+        {
+            self.constraints = self.read_constraints()
+            self.constraints.pop(i)
+            self.show_constraints()
+
+        }
+    }
+    def accept(self)
+    {
+        try
+        {
+            constraints = self.read_constraints()
+            points, report = solve_sketch(self.read_points(), constraints)
+            validate_profile(points)
+            self.points = points
+            self.constraints = constraints
+            self.report = report
+            super().accept()
+        }
+        except Exception as e
+        {
+            self.status.setText(str(e))
+
+        }
+    }
+}
+class BooleanOperands(W.QDialog)
+
+{
+    def __init__(self, part, parent=None)
+    {
+        super().__init__(parent)
+        self.setWindowTitle('Parametric Boolean operands')
+        self.resize(580, 600)
+        self.part = deepcopy(part)
+        layout = W.QVBoxLayout(self)
+        layout.addWidget(W.QLabel('Edit the target and tool dimensions. The Boolean feature is rebuilt from these parameters.'))
+        self.fields = {}
+        self.operation = W.QComboBox()
+        self.operation.addItems(['Union', 'Cut', 'Intersect'])
+        self.operation.setCurrentText(part.boolean['operation'])
+        layout.addWidget(self.operation)
+        for key, title in [('left', 'Target'), ('right', 'Tool')]
+        {
+            obj = Part(**part.boolean[key])
+            group = W.QGroupBox(title + ' · ' + obj.shape)
+            form = W.QFormLayout(group)
+            self.fields[key] = {}
+            for field, values in [('size', obj.size), ('position', obj.position), ('rotation', obj.rotation)]
+            {
+                row = W.QWidget()
+                hl = W.QHBoxLayout(row)
+                spins = []
+                for axis, value in zip('XYZ', values)
+                {
+                    spin = W.QDoubleSpinBox()
+                    spin.setRange(1 if field == 'size' else -5000, 5000)
+                    spin.setDecimals(2)
+                    spin.setValue(value)
+                    spin.setPrefix(axis + ' ')
+                    hl.addWidget(spin)
+                    spins.append(spin)
+                }
+                self.fields[key][field] = spins
+                form.addRow(field, row)
+            }
+            layout.addWidget(group)
+        }
+        buttons = W.QDialogButtonBox(W.QDialogButtonBox.Ok | W.QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    }
+    def accept(self)
+    {
+        self.part.boolean['operation'] = self.operation.currentText()
+        for key, fields in self.fields.items()
+        {
+            for name, spins in fields.items()
+            {
+                self.part.boolean[key][name] = [s.value() for s in spins]
+            }
+        }
+        super().accept()
+    }
+}

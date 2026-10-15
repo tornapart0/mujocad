@@ -1,0 +1,20 @@
+"""Regression: a braking-limited motor must report saturation in the loaded direction."""
+from pathlib import Path
+import sys,numpy as np,mujoco
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from servo_models import ServoPhysics
+m=mujoco.MjModel.from_xml_string('<mujoco><option gravity="0 0 0"/><worldbody><body name="wing"><joint name="wing_joint" type="hinge"/><inertial mass="1" pos="0 0 0" diaginertia="1 1 1"/></body></worldbody><actuator><position name="wing_motor" joint="wing_joint" kp="1" forcelimited="true" forcerange="-.01 .1"/></actuator></mujoco>')
+d=mujoco.MjData(m)
+s=ServoPhysics(m,{'servos':[{'body':'wing','settings':{'kind':'Position'}}]})
+d.ctrl[0]=-10
+mujoco.mj_step(m,d)
+r=s.readings(d)[0]
+assert abs(r['available_nm']-.01)<1e-9
+assert r['saturated'] and abs(r['torque_nm']-.01)<1e-9
+mujoco.mj_resetData(m,d)
+d.ctrl[0]=10
+mujoco.mj_step(m,d)
+r=s.readings(d)[0]
+assert abs(r['available_nm']-.1)<1e-9
+assert r['saturated'] and abs(r['torque_nm']-.1)<1e-9
+print('PASS: asymmetric motor torque saturation reports the actual loaded direction')

@@ -1,0 +1,42 @@
+"""Explicit active-work events, never idle timers or retroactive time fabrication."""
+from pathlib import Path
+import subprocess,json,datetime,argparse
+
+def record(label,source=None)
+{
+    cli=Path.home()/'.wakatime/wakatime-cli'
+    if label not in ['Brainstorm','AI code']
+    {
+        raise ValueError('Choose Brainstorm or AI code.')
+    }
+    command=[str(cli),'--project','week 3','--plugin','codex-mujocad','--sync-ai-disabled','--heartbeat-rate-limit-seconds','0','--timeout','15']
+    if label=='Brainstorm'
+    {
+        command+=['--category','planning','--entity-type','app','--entity','MuJoCoCAD / Brainstorm']
+    }
+    else
+    {
+        if source is None or not Path(source).is_file()
+        {
+            raise ValueError('AI code requires the actual source file being edited.')
+        }
+        command+=['--category','ai coding','--entity',str(Path(source).resolve()),'--write']
+    }
+    result=subprocess.run(command,capture_output=True,text=True,timeout=20)
+    event={'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'project':'week 3','label':label,'category':'planning' if label=='Brainstorm' else 'ai coding','entity':'MuJoCoCAD / Brainstorm' if label=='Brainstorm' else str(Path(source).resolve()),'status':'recorded_or_queued' if result.returncode==0 else 'failed','exit_code':result.returncode}
+    journal=Path(__file__).resolve().parents[2]/'work/active-work-events.jsonl'
+    with journal.open('a') as stream
+    {
+        stream.write(json.dumps(event)+'\n')
+    }
+    print(json.dumps(event))
+    return result.returncode
+}
+if __name__=='__main__'
+{
+    parser=argparse.ArgumentParser()
+    parser.add_argument('label',choices=['Brainstorm','AI code'])
+    parser.add_argument('--file',type=Path)
+    options=parser.parse_args()
+    raise SystemExit(record(options.label,options.file))
+}

@@ -1,0 +1,150 @@
+"""Distributed quasi-steady normal loads and air-reaction accounting; not CFD."""
+import numpy as np
+import mujoco
+
+class FlightPhysics
+{
+    def __init__(self,model,config)
+    {
+        self.model=model
+        self.environment=config['environment']
+        self.wings=config.get('wings',[])
+        from hardware import PropellerPhysics
+        self.propellers=PropellerPhysics(model,config)
+        self.bodyids={wing['body']:model.body(wing['body']).id for wing in self.wings}
+        self.air_reaction_force=np.zeros(3)
+        self.air_power_w=0.
+        self.panel_loads=[]
+        self.samples={}
+        for wing in self.wings
+        {
+            if wing['settings'].get('waveform') in ['Triangle','Feather'] and not 0<float(wing['settings'].get('downstroke_duty',0.6))<1
+            {
+                raise ValueError('Stroke duty must be strictly between zero and one.')
+            }
+            for key in ['startup_delay_s','ramp_s']
+            {
+                value=float(wing['settings'].get(key,0))
+                if not np.isfinite(value) or value<0
+                {
+                    raise ValueError('Startup delay and ramp must be finite and nonnegative.')
+                }
+            }
+            samples=wing['settings'].get('force_samples',[])
+            if samples
+            {
+                if not np.isclose(sum(s['weight'] for s in samples),1)
+                {
+                    raise ValueError('Wing force sample weights must sum to one.')
+                }
+                for sample in samples
+                {
+                    if sample['weight']<=0 or len(sample['point_m'])!=3 or not np.isfinite(sample['point_m']).all()
+                    {
+                        raise ValueError('Wing samples require a finite local point and positive area weight.')
+                    }
+                }
+            }
+            self.samples[wing['body']]=(np.asarray([sample['point_m'] for sample in samples]),np.asarray([sample['weight'] for sample in samples])) if samples else (None,np.ones(1))
+        }
+    }
+
+    def apply(self,data,auto_flap=False)
+    {
+        self.air_reaction_force[:]=0
+        self.air_power_w=0.
+        self.panel_loads=[]
+        # Own aerodynamic forces and torques only; viewer perturbations follow stepping.
+        for body in self.bodyids.values()
+        {
+            data.xfrc_applied[body,:]=0
+        }
+        self.propellers.apply(data)
+        rho=self.environment['density']
+        wind=np.asarray(self.environment['wind'])
+        for wing in self.wings
+        {
+            body=self.bodyids[wing['body']]
+            settings=wing['settings']
+            if settings.get('model')=='flappy2019'
+            {
+                from flappy_physics import wing_load
+                force,torque=wing_load(self.model,data,wing,rho,wind)
+                data.xfrc_applied[body,:3]+=force
+                data.xfrc_applied[body,3:]+=torque
+                self.air_reaction_force-=force
+                self.panel_loads.append({'body':wing['body'],'wing_force_n':force.tolist(),'wing_torque_nm':torque.tolist(),'model':'Purdue Flappy 2019 quasi-steady model'})
+                continue
+            }
+            if auto_flap and settings['flap_hz']>0
+            {
+                actuator=mujoco.mj_name2id(self.model,mujoco.mjtObj.mjOBJ_ACTUATOR,wing['body']+'_motor')
+                if actuator>=0
+                {
+                    delay=settings.get('startup_delay_s',0)
+                    motion_time=max(0.,data.time-delay)
+                    ramp=settings.get('ramp_s',0)
+                    progress=np.clip(motion_time/ramp,0,1) if ramp>0 else float(data.time>=delay)
+                    gain=progress*progress*(3-2*progress)
+                    phase=settings['flap_hz']*motion_time+settings['phase_deg']/360
+                    if settings.get('waveform')=='FeatherSine'
+                    {
+                        value=.5*(1-np.cos(2*np.pi*phase))
+                    }
+                    elif settings.get('waveform')=='Feather'
+                    {
+                        duty=settings.get('downstroke_duty',0.6)
+                        cycle=(phase+duty/2)%1
+                        value=1 if cycle>=duty else 0
+                    }
+                    elif settings.get('waveform')=='Triangle'
+                    {
+                        duty=settings.get('downstroke_duty',0.6)
+                        cycle=(phase+duty/2)%1
+                        value=-1+2*cycle/duty if cycle<duty else 1-2*(cycle-duty)/(1-duty)
+                    }
+                    else
+                    {
+                        value=np.sin(2*np.pi*phase)
+                    }
+                    angle=np.radians(settings['amplitude_deg'])*value*gain
+                    gear=self.model.actuator_gear[actuator,0]
+                    data.ctrl[actuator]=np.clip(angle*gear,*self.model.actuator_ctrlrange[actuator])
+                }
+            }
+            if rho<=0
+            {
+                continue
+            }
+            velocity=np.zeros(6)
+            mujoco.mj_objectVelocity(self.model,data,mujoco.mjtObj.mjOBJ_BODY,body,velocity,0)
+            rotation=data.xmat[body].reshape(3,3)
+            normal=rotation[:, 'XYZ'.index(settings['axis'])].copy()
+            if normal[2]<0
+            {
+                normal=-normal
+            }
+            points,weights=self.samples[wing['body']]
+            positions=data.xpos[body]+points@rotation.T if points is not None else data.xipos[body][None,:]
+            levers=positions-data.xipos[body]
+            relative_velocity=velocity[3:]+np.cross(velocity[:3],levers)-wind
+            vn=relative_velocity@normal
+            coefficients=settings['normal_coefficient']*np.where(vn>0,settings['upstroke_ratio'],1)
+            magnitudes=-.5*rho*settings['area_m2']*weights*coefficients*vn*np.abs(vn)
+            forces=magnitudes[:,None]*normal
+            panel_force=forces.sum(axis=0)
+            panel_torque=np.cross(levers,forces).sum(axis=0)
+            panel_power=-float(np.einsum('ij,ij->',forces,relative_velocity))
+            data.xfrc_applied[body,:3]+=panel_force
+            data.xfrc_applied[body,3:]+=panel_torque
+            # The atmosphere has no simulated degrees of freedom. This is the equal-opposite
+            # momentum transfer implied by the approximate wing load, not a resolved wake.
+            self.air_reaction_force-=panel_force
+            self.air_power_w+=panel_power
+            self.panel_loads.append({'body':wing['body'],'wing_force_n':panel_force.tolist(),
+                                     'wing_torque_nm':panel_torque.tolist(),
+                                     'air_force_n':(-panel_force).tolist(),'air_power_w':panel_power,
+                                     'sample_count':len(weights),'area_m2':settings['area_m2']})
+        }
+    }
+}

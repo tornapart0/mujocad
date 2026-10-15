@@ -1,0 +1,228 @@
+"""FAAV-inspired compact mechanism prototype; NOT an authenticated copy or flight claim."""
+from pathlib import Path
+import json, math
+import numpy as np
+from model import Part,save_project,export_model
+from connected_ornithopter import rod
+
+GREEN=[.22,.39,.29,1]
+TAN=[.84,.73,.47,1]
+
+def build(brushless=False,classroom=False)
+{
+    height=60 if classroom else (175 if brushless else 155)
+    root=Part(name='compact_frame',size=[30,160,3],position=[0,0,height],joint='Free',density=450,color=GREEN,motor='None')
+    root.environment={'preset':'Earth','gravity':[0,0,-9.81],'density':1.225,'viscosity':.000018,'wind':[0,0,0],'ground':True,'timestep':.001}
+    root.scenario={'kind':'CompactCrankOrnithopter','root':'compact_frame','drive':'drive_crank','tail':'tail_pitch','required_airborne_s':20,'takeoff_clearance_m':.1,'reference':'https://aura.mit.edu/research/faav.html','note':'Motor-crank-slider adaptation, not the original FAAV transmission. Ground takeoff unvalidated.'}
+    parts=[root]
+    def add(p)
+    {
+        p.color=GREEN if p.color==[.48,.66,.48,1] else p.color
+        parts.append(p)
+        return p
+    }
+    def fixed(name,size,pos,mass_g)
+    {
+        return add(Part(name=name,size=size,position=pos,parent=root.name,mass=mass_g*.001,motor='None',color=GREEN))
+    }
+    # Explicit component masses; provisional battery, electronics and hardware allowances.
+    fixed('battery_6V_regulated_pack_allowance',[24,42,12],[0,30,-8],35)
+    fixed('controller_driver_regulator_allowance',[22,24,5],[0,63,4],12)
+    fixed('wires_fasteners_bearings_allowance',[20,12,5],[0,8,-4],10)
+    fixed('motor_gearbox_Pololu1093',[12,26,10],[0,-25,-40],9.5)
+    fixed('drive_mount',[18,4,45],[0,-23,-20],3)
+    fixed('slider_guide_left',[3,8,31],[-7,-10,-13],1)
+    fixed('slider_guide_right',[3,8,31],[7,-10,-13],1)
+    for sign,label in [(1,'right'),(-1,'left')]
+    {
+        fixed(label+'_bearing_pedestal',[5,12,16],[sign*25,-10,-7],1)
+        add(rod(label+'_bearing_bridge',[sign*14,-10,0],[sign*25,-10,-7],2,root.name,1600))
+        add(rod(label+'_hinge_pin',[sign*25,-19,0],[sign*25,-1,0],2,root.name,7850))
+    }
+    # Manufacturer no-load/stall data, NOT a proven flight motor or continuous rating.
+    # The complete 9.5g housing is modeled above, so servo metadata adds zero extra housing mass.
+    motor={'kind':'Velocity','mass_g':0,'stall_nm':.57*.0980665,'continuous_nm':.57*.0980665*.25,'seconds_60':.01,'voltage':6.,'rated_voltage':6.,'travel_deg':360,'rotor_inertia':1e-7,'continuous_duty':True,'mount':'Parent','housing_mm':[12,10,26],'source':'https://www.pololu.com/product/1093','assumptions':['25% stall continuous cap is an unmeasured conservative duty assumption','Linear torque-speed approximation; no measured thermal or gearbox efficiency map']}
+    crank=add(Part(name='drive_crank',size=[12,3,3],position=[0,-10,-40],parent=root.name,joint='Hinge',axis='Y',unlimited=True,limits=[-6000,6000],motor='Velocity',control=1800,kv=.0008,torque=motor['stall_nm'],servo=motor,density=1330,damping=.000001,armature=0,collision='None',color=TAN))
+    add(rod('drive_shaft',[0,-15,0],[0,0,0],2,crank.name,7850))
+    add(rod('crank_pin',[6,-3,0],[6,3,0],2,crank.name,7850))
+    slider=add(Part(name='guided_slider',size=[8,5,6],position=[0,-10,-18],parent=root.name,joint='Slide',axis='Z',limits=[-7,7],motor='None',damping=.003,armature=0,density=1330,collision='None'))
+    # Real rod joint and a connect constraint: forces back-drive the crank, no angle teleporting.
+    con=rod('crank_connecting_rod',[6,0,0],[0,0,22],2,crank.name,1600)
+    con.joint='Hinge'
+    con.unlimited=True
+    con.axis='Y'
+    con.pivot=[0,0,-math.sqrt(520)/2]
+    con.motor='None'
+    con.damping=.000001
+    con.armature=0
+    con.collision='None'
+    con.closure={'type':'Connect','body':slider.name,'anchor':[0,0,math.sqrt(520)/2],'solref':[.002,1]}
+    add(con)
+    for sign,label in [(1,'right'),(-1,'left')]
+    {
+        rocker=add(Part(name=label+'_wing_rocker',size=[30,4,4],position=[sign*25,-10,0],parent=root.name,joint='Hinge',axis='Y',limits=[-40,40],motor='None',damping=.000002,armature=0,density=1330,collision='None',color=TAN))
+        link=rod(label+'_pushrod',[0,-10,-18],[sign*10,-10,0],2,slider.name,1600)
+        # rod() uses its parent's coordinates; restore the relative origin after root-space construction.
+        link.position=[sign*5,0,9]
+        length=math.sqrt(424)
+        link.joint='Hinge'
+        link.unlimited=True
+        link.axis='Y'
+        link.pivot=[0,0,-length/2]
+        link.motor='None'
+        link.damping=.000001
+        link.armature=0
+        link.collision='None'
+        link.closure={'type':'Connect','body':rocker.name,'anchor':[0,0,length/2],'solref':[.002,1]}
+        add(link)
+        # Whole-wing torsional flex plus a compliant outer panel. Stiffness is an explicit hypothesis.
+        wing=add(Part(name=label+'_passive_wing',size=[16,5,4],position=[sign*8,0,0],parent=rocker.name,joint='Hinge',axis='X',limits=[-45,45],motor='None',stiffness=.015,damping=.0003,armature=0,density=450,collision='None'))
+        for k,(start,end,chord0,chord1) in enumerate([(0,150,110,85),(150,267,85,40)])
+        {
+            parent=wing.name
+            offset=start
+            if k==1
+            {
+                flex=add(Part(name=label+'_outer_flex',size=[8,4,3],position=[sign*150,0,0],parent=wing.name,joint='Hinge',axis='Y',limits=[-20,20],motor='None',stiffness=.008,damping=.00012,armature=0,density=450,collision='None'))
+                parent=flex.name
+                offset=0
+            }
+            length=end-start
+            for a,b,suffix in [([sign*offset,0,0],[sign*(offset+length),0,0],'leading_spar'),([sign*offset,chord0,0],[sign*(offset+length),chord1,0],'trailing_spar'),([sign*offset,0,0],[sign*offset,chord0,0],'root_rib'),([sign*(offset+length),0,0],[sign*(offset+length),chord1,0],'tip_rib')]
+            {
+                add(rod(label+'_'+str(k)+'_'+suffix,a,b,1.2,parent,1600))
+            }
+            membrane=add(Part(name=label+'_'+str(k)+'_membrane',shape='Sketch',size=[length,chord0,.025],sketch=[[0,0],[sign*length,0],[sign*length,chord1],[0,chord0]],position=[sign*(offset+length/2),chord0/2,0],parent=parent,density=1390,motor='None',collision='Convex hull',color=TAN))
+            membrane.aero={'axis':'Z','area_source':'geometry','area_m2':length*(chord0+chord1)*.5e-6,'normal_coefficient':1.4,'upstroke_ratio':1.,'flap_hz':0.,'amplitude_deg':0.,'phase_deg':0.,'waveform':'Sine'}
+        }
+    }
+    add(rod('tail_boom',[0,40,0],[0,182,0],2,root.name,1600))
+    tail=add(Part(name='tail_pitch',size=[12,7,4],position=[0,185,0],parent=root.name,joint='Hinge',axis='X',limits=[-25,25],motor='Position',kp=.25,kv=.003,torque=.04,damping=.000001,armature=0,density=450,collision='None'))
+    tail.servo={'kind':'Position','mass_g':6,'stall_nm':1.5*.0980665,'continuous_nm':.04,'seconds_60':.08,'voltage':6,'rated_voltage':6,'travel_deg':120,'rotor_inertia':1e-7,'continuous_duty':True,'mount':'Parent','housing_mm':[20,7,16.6],'source':'https://kstservos.com/products/x06n-v6-0-hv-micro-digital-metal-gear-glider-1-8kg-torque-servo-motor'}
+    add(Part(name='tail_sail',shape='Sketch',size=[110,65,.025],sketch=[[-55,0],[55,0],[35,65],[-35,65]],position=[0,32.5,0],parent=tail.name,density=1390,motor='None',collision='Convex hull',color=TAN,aero={'axis':'Z','area_m2':.00585,'normal_coefficient':1.4,'upstroke_ratio':1.,'flap_hz':0.,'amplitude_deg':0.,'phase_deg':0.,'waveform':'Sine'}))
+    for x in [-55,55]
+    {
+        add(rod('tail_rib_'+str(x),[0,0,0],[x,0,0],1.2,tail.name,1600))
+        add(rod('tail_diagonal_'+str(x),[x,0,0],[x*35/55,65,0],1.2,tail.name,1600))
+    }
+    add(rod('tail_trailing',[-35,65,0],[35,65,0],1.2,tail.name,1600))
+    for label,a,b in [('left',[-14,-45,0],[-55,-45,3-height]),('right',[14,-45,0],[55,-45,3-height]),('rear',[0,65,0],[0,115,3-height])]
+    {
+        add(rod(label+'_landing_strut',a,b,2,root.name,1600))
+        add(Part(name=label+'_ground_pad',shape='Sphere',size=[6,6,6],position=b,parent=root.name,density=1100,motor='None',color=GREEN))
+    }
+    if brushless
+    {
+        next(p for p in parts if p.name=='battery_6V_regulated_pack_allowance').name='battery_2S_with_6V_tail_BEC_allowance'
+        housing=next(p for p in parts if p.name=='motor_gearbox_Pololu1093')
+        housing.name='AM30_motor_housing'
+        housing.size=[35,12,35]
+        housing.mass=.0186
+        housing.position=[0,-30,-40]
+        fixed('reduction_30_to_1_mass_allowance',[26,25,30],[0,-12,-25],15)
+        root.scenario['drive_variant']='AM30 1450KV, 7.4V, 30:1 assumed reduction'
+        kt=60/(2*math.pi*1450)
+        peak=kt*(13.7-.8)*30*.7
+        continuous=kt*(6.-.8)*30*.7
+        crank.torque=peak
+        crank.kv=.03
+        crank.servo.update(stall_nm=peak,continuous_nm=continuous,seconds_60=(math.pi/3)/((7.4-.8*.204)/kt/30),voltage=7.4,rated_voltage=7.4,rotor_inertia=.9e-6*30**2,source='https://www.ligpower.com/product/am30-3d-4d-f3p-Indoor-fixed-wing-motor.html',electrical={'kv_rpm_v':1450,'resistance_ohm':.204,'idle_current_a':.8,'current_limit_a':6.,'reduction':30.,'efficiency':.7},assumptions=['6A software limit is below manufacturer 13.7A 60s peak; continuous thermal operation is unmeasured.','30:1 reduction and 70% efficiency are design hypotheses, not a tested gearbox. All gearbox mass is represented by a 15g allowance.','0.9e-6 kg m2 rotor inertia is a geometric estimate, reflected through the square of the ratio.','Motor envelope is an approximate DC-equivalent BLDC model using manufacturer Kv, resistance and idle current; idle current was measured at 10V.'])
+        for p in parts
+        {
+            if p.name.endswith('_passive_wing')
+            {
+                p.rotation=[-20,0,0]
+            }
+            if p.name.endswith('_ground_pad')
+            {
+                p.shape='Cylinder'
+                p.size=[6,6,3]
+                p.rotation=[0,90,0]
+                p.joint='Hinge'
+                p.axis='Z'
+                p.unlimited=True
+                p.damping=.0000001
+                p.armature=0
+                p.friction=[.8,.005,.0001]
+            }
+        }
+        root.scenario['takeoff_mode']='Unpowered physical wheels for ground roll; no catapult or raised release. Required runway is unvalidated.'
+    }
+    if classroom
+    {
+        for p in parts
+        {
+            if p.aero and p.shape=='Sketch'
+            {
+                p.aero['area_source']='geometry'
+            }
+        }
+        root.scenario.update(confined=True,incidence_motors=['right_incidence','left_incidence'],ground_incidence_limit_deg=8,maximum_horizontal_drift_m=.25,maximum_ground_drift_m=.05,maximum_tilt_deg=15,maximum_height_range_m=.1,takeoff_mode='Belly chassis on short rubber feet, wings raised at rest. No stilts, runway, throw or launch fixture.')
+        parts[:]=[p for p in parts if not p.name.endswith('_landing_strut')]
+        fixed('chassis_belly',[38,105,.5],[0,5,-55],38*105*.5*1330e-6)
+        fixed('chassis_top_deck',[40,105,.5],[0,5,0],40*105*.5*1330e-6)
+        for sign,label in [(1,'right'),(-1,'left')]
+        {
+            fixed(label+'_chassis_side',[.5,105,55],[sign*19,5,-27.5],.5*105*55*1330e-6)
+        }
+        next(p for p in parts if p.name=='AM30_motor_housing').position[2]=-37
+        for label,sign in [('right',1),('left',-1)]
+        {
+            wing=next(p for p in parts if p.name==label+'_passive_wing')
+            trim=Part(name=label+'_incidence',size=[8,5,4],parent=wing.parent,position=list(wing.position),rotation=[0,-sign*60,0],joint='Hinge',axis='X',limits=[-20,20],motor='Position',kp=.25,kv=.003,torque=.04,damping=.000001,armature=0,density=1330,color=GREEN,collision='None')
+            trim.servo=dict(tail.servo,mass_g=0)
+            wing.parent=trim.name
+            wing.position=[0,0,0]
+            wing.limits=[-8,8]
+            wing.stiffness=.03
+            add(trim)
+            add(Part(name=label+'_incidence_servo_housing',size=[20,7,16.6],position=[sign*(8+9*math.sin(math.radians(60))),0,-9*math.cos(math.radians(60))],rotation=[0,-sign*60,0],parent=trim.parent,mass=.006,motor='None',collision='None',color=GREEN))
+        }
+        for p in parts
+        {
+            if p.name.endswith('_ground_pad')
+            {
+                p.shape='Sphere'
+                p.size=[6,6,6]
+                p.rotation=[0,0,0]
+                p.joint='Fixed'
+                p.position={'left':[-14,-38,-57],'right':[14,-38,-57],'rear':[0,55,-57]}[p.name.split('_')[0]]
+            }
+        }
+    }
+    return parts
+}
+
+def write(folder,brushless=False,classroom=False)
+{
+    folder=Path(folder)
+    folder.mkdir(parents=True,exist_ok=True)
+    parts=build(brushless,classroom)
+    save_project(folder/'CompactCrank.mjcad',parts)
+    xml,model=export_model(folder,parts)
+    notes={'design':'600 mm FAAV-inspired crank-slider prototype','span_mm':600,'flight_validated':False,'ground_takeoff_validated':False,'reference_sources':['https://news.mit.edu/2026/new-flapping-robot-swims-and-flies-like-diving-bird-0709','https://aura.mit.edu/research/faav.html','https://zenodo.org/records/19378356','https://www.pololu.com/product/1093'],'mass_kg':float(model.body_mass.sum()),'drive':'One torque-speed-limited continuous motor, physical crank, connecting rod, guided slider and two rocker pushrods with closed-loop constraints','assumptions':['Motor is a manufacturer-backed low-power mechanism demonstrator, NOT selected as sufficient for flight. No thrust propeller.','25% stall continuous torque cap is an unmeasured assumption, not a manufacturer rating.','Battery/regulator 35 g, electronics/driver 12 g and hardware 10 g are provisional mass allowances.','Ideal bearings; gearbox backlash, thermal and fatigue behavior unmeasured.','Passive flex is two lumped torsional joints per wing, not membrane FEA. Stiffness uncalibrated.','Aerodynamics are uncalibrated local normal-pressure forces, without circulation or wake. Author wind-tunnel data are comparison evidence, never applied as extra lift.','Ground stage takeoff is not established by the authors forward-flight or water-exit demonstrations.'],'maximum_ideal_motor_mechanical_power_w':.57*.0980665*(1000*2*math.pi/60)/4}
+    (folder/'design-evidence.json').write_text(json.dumps(notes,indent=2))
+    if brushless
+    {
+        notes.update(drive_variant='AM30 brushless geared candidate',maximum_ideal_motor_mechanical_power_w=None,motor_electrical_limit_w=7.4*6,mass_kg=float(model.body_mass.sum()),additional_mass_allowance_kg=.015,source='https://www.ligpower.com/product/am30-3d-4d-f3p-Indoor-fixed-wing-motor.html')
+        notes['assumptions'][0]='AM30 winding data from manufacturer; 6A software current limit. No propeller, thruster or externally applied body lift.'
+        notes['assumptions'][1]='30:1 transmission, 70% gearbox efficiency and estimated rotor inertia are unmeasured design hypotheses. Gearbox teeth, backlash, bearing loss and thermal behavior are not resolved.'
+        notes['assumptions'][2]='2S 7.4V battery plus 6V servo BEC: provisional 35g allowance; controller/driver 12g and hardware 10g. Measured component masses and battery current capability remain required.'
+        notes['assumptions'].append('Trailing edge 20 degrees below leading edge, 175mm frame height and free-rolling 6mm wheels allow an unpowered ground roll. Rolling friction, wheel bearing loss and the required runway are unmeasured; no vertical takeoff claim.')
+        (folder/'design-evidence.json').write_text(json.dumps(notes,indent=2))
+    }
+    if classroom
+    {
+        notes.update(design='600mm confined-flight research prototype',ground_takeoff_validated=False,classroom_ready=False,maximum_horizontal_drift_m=.25,maximum_ground_drift_m=.05,maximum_tilt_deg=15,maximum_height_range_m=.1,mass_kg=float(model.body_mass.sum()),control='Shared physical crank, independent left/right incidence servos, passive torsional wing flex, tail pitch servo.')
+        notes['assumptions'][-1]='Fixed landing pads replace wheels. Required: near-vertical lift-off with <=50mm ground drift, 20s unsupported flight within 250mm of launch, <=15deg tilt and <=100mm height variation. These criteria are not demonstrated.'
+        notes['assumptions'].append('Wing incidence servos include explicit 6g housings and their manufacturer rated 6V torque/speed limits. High-frequency feathering cannot bypass their speed limit.')
+        notes['assumptions'].append('60mm frame datum, belly 4.75mm above the ground, short feet reach Z=0. Raised wing mounts replace all long supports. Ground incidence commands limited to +/-8 degrees; full +/-20 degree trim available after lift-off. Passive twist limit +/-8 degrees and spring stiffness remain unmeasured.')
+        (folder/'design-evidence.json').write_text(json.dumps(notes,indent=2))
+    }
+    return xml,model
+}
+if __name__=='__main__'
+{
+    import sys
+    write(sys.argv[1],'--brushless' in sys.argv or '--classroom' in sys.argv,'--classroom' in sys.argv)
+}

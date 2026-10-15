@@ -1,0 +1,88 @@
+import tempfile
+from pathlib import Path
+import numpy as np
+from shapely import union_all
+from PySide6 import QtWidgets as W, QtCore as C
+from model import Part, solid, world_matrix, save_project, load_project, export_model
+from sketch_regions import sketch_cells, region_part
+from editor_actions import mirrored_parts, snapped_move
+from app import SketchDialog
+
+outer=[[-50,-30],[50,-30],[50,30],[-50,30]]
+inner=[[-10,-10],[10,-10],[10,10],[-10,10]]
+cells=sketch_cells([outer,inner])
+assert [c.area for c in cells] == [5600,400]
+parts=[]
+for selected, expected in [([cells[0]],56000),([cells[1]],4000),(cells,60000)]
+{
+    bounds=union_all(selected).bounds
+    part=region_part('plate',selected,bounds[2]-bounds[0],bounds[3]-bounds[1],10,[0,0,5])
+    assert abs(solid(part).volume-expected)<1e-4
+    parts.append(part)
+}
+# Multiple nested levels, intersections, disjoint profiles and invalid outlines.
+small=[[-5,-5],[5,-5],[5,5],[-5,5]]
+assert len(sketch_cells([outer,inner,small]))==3
+shifted=[[x+80,y] for x,y in outer]
+assert len(sketch_cells([outer,shifted]))==3
+far=[[x+200,y] for x,y in inner]
+disjoint=sketch_cells([outer,far])
+assert len(solid(region_part('disjoint',disjoint,260,60,10,[0,0,5])).solids())==2
+try
+{
+    sketch_cells([[[0,0],[10,10],[0,10],[10,0]]])
+    raise AssertionError('Invalid outline accepted')
+}
+except ValueError
+{
+    pass
+}
+# Winding must not change extrusion direction.
+assert np.allclose(tuple(solid(Part('cw',shape='Sketch',sketch=outer[::-1],size=[100,60,10])).bounding_box().center()),[0,0,0])
+base=Part('base',position=[13,21,30],rotation=[20,15,35])
+wing=Part('wing',parent='base',joint='Hinge',axis='Y',motor='Position',limits=[-15,35],control=20,position=[60,0,0],rotation=[10,30,5],pivot=[-25,4,0],shape='Sketch',sketch=[[0,0],[50,0],[15,30]],size=[50,30,5])
+originals=[base,wing]
+copies=mirrored_parts(originals,[0,1],0,7)
+assert copies[1].parent==copies[0].name
+assert copies[1].control==-20 and copies[1].limits==[-35,15]
+S=np.diag([-1,1,1])
+for original,copy in zip(originals,copies)
+{
+    old=world_matrix(original,originals);new=world_matrix(copy,originals+copies)
+    expected=S@old[:3,3];expected[0]+=14
+    assert np.allclose(new[:3,3],expected)
+    assert np.allclose(new[:3,:3],S@old[:3,:3]@S)
+    assert np.isclose(solid(original).volume,solid(copy).volume)
+}
+old=world_matrix(wing,originals)
+new=snapped_move(old,0,12,25)
+assert new[0,3]%25==0 and np.allclose(new[1:3,3],old[1:3,3])
+assert np.allclose(new[:3,:3],old[:3,:3])
+with tempfile.TemporaryDirectory() as folder
+{
+    path=Path(folder)/'test.json'
+    save_project(path,originals+copies)
+    loaded=load_project(path)
+    assert loaded[3].mirror_axes==[0]
+    assert np.isclose(solid(loaded[3]).volume,solid(wing).volume)
+    # CAD export must preserve a real hole and produce a loadable MuJoCo model.
+    import mujoco
+    export_model(Path(folder)/'robot',[parts[0]])
+    files=list((Path(folder)/'robot').glob('*.xml'))
+    assert files
+    assert mujoco.MjModel.from_xml_path(str(files[0])).ngeom>0
+}
+app=W.QApplication.instance() or W.QApplication([])
+d=SketchDialog(None)
+d.canvas.points=outer
+assert d.add_outline()
+d.canvas.points=inner
+assert d.add_outline() and d.region_list.count()==2
+assert not d.canvas.selected_regions
+d.toggle_region(0)
+assert d.canvas.selected_regions=={0}
+assert d.width.value()==100 and d.depth.value()==60
+assert not d.canvas.grab().isNull()
+d.accept()
+assert d.result()==W.QDialog.Accepted
+print('PASS: nested sketch volumes, region UI, mirror hierarchy, grid snap, save/load and MuJoCo export')

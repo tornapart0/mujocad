@@ -1,0 +1,165 @@
+"""Editable Leonardo-inspired model, not a historical reconstruction or validated aircraft."""
+from pathlib import Path
+from copy import deepcopy
+import json
+import numpy as np
+from scipy.spatial.transform import Rotation
+from model import Part, save_project, solid
+from build_materials import PRESETS
+from servo_models import PRESETS as SERVOS
+
+FILM_SOURCE = 'https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf'
+REFERENCE = 'https://airandspace.si.edu/stories/editorial/leonardo-da-vinci-and-flight'
+FILM_THICKNESS_MM = 0.025
+FILM_DENSITY = 1390.0
+
+
+def build_design(flap_hz=1.0)
+{
+    parts = []
+    wood = deepcopy(PRESETS['Balsa · nominal 155 kg/m³'])
+    carbon = deepcopy(PRESETS['Carbon/epoxy sheet · representative'])
+    carbon['note'] += ' Used as a solid spar proxy, not a measured pultruded rod.'
+    film = {'density': FILM_DENSITY, 'source': FILM_SOURCE,
+            'note': '25 µm design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.',
+            'areal_density_g_m2': FILM_DENSITY * FILM_THICKNESS_MM,
+            'thickness_mm': FILM_THICKNESS_MM}
+    tan = [0.78, 0.64, 0.38, 1]
+    sail = [0.90, 0.82, 0.61, 1]
+    dark = [0.22, 0.30, 0.24, 1]
+    def box(name, size, position, parent, material=wood, color=tan, **kwargs)
+    {
+        p = Part(name=name, size=size, position=position, parent=parent,
+                 density=material['density'], material=deepcopy(material), color=color,
+                 motor='None', collision='Auto', **kwargs)
+        parts.append(p)
+        return p
+    }
+    def rod(name, start, end, diameter, parent, material=wood, color=tan)
+    {
+        start, end = np.array(start, float), np.array(end, float)
+        delta = end-start
+        length = float(np.linalg.norm(delta))
+        orientation, _ = Rotation.align_vectors([delta/length], [[0,0,1]])
+        p = Part(name=name, shape='Cylinder', size=[diameter,diameter,length],
+                 position=((start+end)/2).tolist(), rotation=orientation.as_euler('xyz', degrees=True).tolist(),
+                 parent=parent, density=material['density'], material=deepcopy(material),
+                 motor='None', collision='Auto', color=color)
+        parts.append(p)
+        return p
+    }
+    def membrane(name, points, parent, z=0)
+    {
+        points = np.array(points, float)
+        bounds = np.ptp(points, axis=0)
+        center = (np.min(points,axis=0)+np.max(points,axis=0))/2
+        area = abs(float(np.sum(points[:,0]*np.roll(points[:,1],-1)-np.roll(points[:,0],-1)*points[:,1])))/2
+        p = Part(name=name, shape='Sketch', sketch=points.tolist(),
+                 size=[*bounds.tolist(), FILM_THICKNESS_MM], position=[*center.tolist(),z],
+                 parent=parent, density=FILM_DENSITY, material=deepcopy(film), color=sail,
+                 motor='None', collision='None',
+                 aero={'area_m2': area*1e-6, 'normal_coefficient':1.4,
+                       'upstroke_ratio':1.0, 'axis':'Z', 'flap_hz':0,
+                       'amplitude_deg':0, 'phase_deg':0})
+        parts.append(p)
+        return p
+    }
+    body = box('fuselage_balsa_keel', [12,230,8], [0,0,450], '', joint='Free', collision_tolerance=2)
+    body.collision = 'Auto'
+    body.environment = {'preset':'Earth','gravity':[0,0,-9.81],'ground':True,
+                        'density':1.225,'viscosity':0.00002,'wind':[0,0,0],'timestep':0.002}
+    for side in [-1,1]
+    {
+        rod('frame_rail_'+str(side), [side*16,-110,4], [side*16,110,4], 3, body.name)
+    }
+    for y in [-85,-30,30,85]
+    {
+        rod('frame_cross_'+str(y), [-16,y,4], [16,y,4], 3, body.name)
+    }
+    # These explicit mass allowances are estimates, not specifications of a purchased battery.
+    allowance = {'density':1000, 'source':'Design allowance; replace with measured assembled mass.',
+                 'note':'Estimated battery/controller/wiring mass. No electrical, voltage sag or thermal model.'}
+    box('battery_ESTIMATE_12g', [18,42,9], [0,35,10], body.name, allowance, dark, mass=0.012)
+    box('controller_wiring_ESTIMATE_4g', [18,25,5], [0,-20,9], body.name, allowance, dark, mass=0.004)
+    servo = deepcopy(next(v for k,v in SERVOS.items() if 'SG51R' in k))
+    # Swept leading edge and scalloped trailing edge: an original Leonardo-inspired silhouette.
+    rim = [(0,-32),(90,-55),(205,-45),(315,-5),(390,45),
+           (340,108),(300,85),(247,145),(205,112),(145,175),(98,130),(0,112)]
+    for side, label in [(1,'right'),(-1,'left')]
+    {
+        hub = box(label+'_wing_hinge', [8,12,8], [side*24,-35,8], body.name, carbon, dark,
+                  joint='Hinge', axis='Y', limits=[-35,35], damping=0.001, armature=0.000001,
+                  kp=0.3, kv=0.008)
+        hub.motor='Position'
+        hub.servo=deepcopy(servo)
+        hub.torque=servo['stall_nm']
+        hub.aero={'area_m2':0.000096,'normal_coefficient':1.4,'upstroke_ratio':1.0,
+                  'axis':'Z','flap_hz':flap_hz,'amplitude_deg':side*35,'phase_deg':0}
+        rim_side = [(side*x,y) for x,y in rim]
+        anchor = (0,0)
+        for i in range(len(rim_side)-1)
+        {
+            membrane(label+'_sail_bay_'+str(i+1), [anchor,rim_side[i],rim_side[i+1]], hub.name)
+        }
+        for i in range(4)
+        {
+            rod(label+'_leading_spar_'+str(i+1), [*rim_side[i],2], [*rim_side[i+1],2], 3, hub.name, carbon, dark)
+        }
+        for i in [2,4,5,7,9,11]
+        {
+            rod(label+'_rib_'+str(i), [0,0,2], [*rim_side[i],2], 2, hub.name)
+        }
+        for i in range(4,len(rim_side)-1)
+        {
+            rod(label+'_trailing_batten_'+str(i), [*rim_side[i],1], [*rim_side[i+1],1], 1.2, hub.name)
+        }
+    }
+    tail = [(-72,125),(-110,195),(-45,178),(0,215),(45,178),(110,195),(72,125)]
+    membrane('tail_sail',tail,body.name,z=4)
+    for i, point in enumerate([tail[1],tail[3],tail[5]])
+    {
+        rod('tail_rib_'+str(i),[0,105,5],[*point,5],2,body.name)
+    }
+    rod('tail_cross_spar',[-72,125,5],[72,125,5],2,body.name)
+    return parts
+
+
+}
+def write_design(directory)
+{
+    from model import export_model
+    from servo_test import test_robot
+    directory=Path(directory)
+    directory.mkdir(parents=True,exist_ok=True)
+    parts=build_design()
+    save_project(directory/'DaVinciOrnithopter.mjcad',parts)
+    result=test_robot(directory,parts,seconds=3)
+    bill=[]
+    for p in parts
+    {
+        mass=p.mass or solid(p).volume*1e-9*p.density
+        bill.append({'part':p.name,'material':p.material,'mass_g':mass*1000,
+                     'parent':p.parent,'joint':p.joint,'size_mm':p.size})
+    }
+    notes={'inspiration':REFERENCE,'historical_reconstruction':False,
+           'span_mm':828,'flapping_frequency_hz':1,'amplitude_degrees':35,
+           'sail_thickness_mm':FILM_THICKNESS_MM,
+           'sail_areal_density_g_m2':FILM_DENSITY*FILM_THICKNESS_MM,
+           'servo_housings_mass_g':10,'bill_of_materials':bill,
+           'assumptions':['Battery 12 g and controller/wiring 4 g are editable allowances, not measured hardware.',
+                          'No thruster. No unmeasured upstroke advantage: upstroke coefficient equals downstroke coefficient.',
+                          'Rigid sail proxies; no membrane deformation, camber, aeroelasticity, tear, flutter or validated unsteady aerodynamics.',
+                          'Aerodynamic coefficients, servo controller gains and rotor inertia require bench calibration.',
+                          'Fixed rib connections idealize glue, seams and hinges; their extra mass must be measured.',
+                          'This is a screening model, not a real-world flight certification.']}
+    (directory/'design-assumptions.json').write_text(json.dumps(notes,indent=2))
+    print(json.dumps({'parts':len(parts),'mass_g':result['robot_mass_g'],
+                      'outcome':result['simulation_outcome'],'thrusters':result['thruster_count']},indent=2))
+    return parts
+
+}
+if __name__=='__main__'
+{
+    import sys
+    write_design(sys.argv[1])
+}

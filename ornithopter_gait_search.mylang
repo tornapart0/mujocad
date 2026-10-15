@@ -1,0 +1,134 @@
+"""Cross-entropy gait search on a physical fixture. Fixture support is never called flight."""
+from pathlib import Path
+from copy import deepcopy
+import json, time, datetime, sys
+import numpy as np
+import mujoco
+from flight_physics import FlightPhysics
+from servo_models import ServoPhysics
+DEADLINE = datetime.datetime(2026, 10, 13, 11, tzinfo=datetime.timezone.utc).timestamp()
+
+class FixtureGait
+{
+
+    def __init__(self, folder)
+    {
+        self.folder = Path(folder)
+        self.path = self.folder / 'robot.xml'
+        self.original = json.loads((self.folder / 'physics.json').read_text())
+        self.weight = None
+
+    }
+    def score(self, values, seconds=3)
+    {
+        frequency, amplitude, duty, pitch_angle, pitch_phase = values
+        for item in self.original.get('servos', [])
+        {
+            if item['body'].endswith('_wing_pitch') and pitch_angle > item['settings']['travel_deg']
+            {
+                raise ValueError('Feather travel exceeds manufacturer servo travel')
+            }
+        }
+        seconds=8/frequency
+        m = mujoco.MjModel.from_xml_path(str(self.path))
+        d = mujoco.MjData(m)
+        config = deepcopy(self.original)
+        for wing in config['wings']
+        {
+            s = wing['settings']
+            name = wing['body']
+            if name.endswith('_wing_hinge')
+            {
+                s.update(flap_hz=float(frequency), amplitude_deg=float(amplitude) * (1 if name.startswith('right') else -1), downstroke_duty=float(duty))
+            }
+            elif name.endswith('_wing_pitch') and mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, name + '_motor') >= 0
+            {
+                s.update(flap_hz=float(frequency), amplitude_deg=-float(pitch_angle), phase_deg=float(pitch_phase), downstroke_duty=float(duty))
+                act = m.actuator(name + '_motor').id
+                joint = m.joint(name + '_joint').id
+                m.actuator_ctrlrange[act] = [-np.radians(pitch_angle), 0]
+                m.jnt_range[joint] = [-np.radians(pitch_angle), 0]
+            }
+        }
+        f = FlightPhysics(m, config)
+        servos = ServoPhysics(m, config)
+        mujoco.mj_forward(m, d)
+        forces = []
+        powers = []
+        for i in range(int(seconds / m.opt.timestep))
+        {
+            f.apply(d, True)
+            servos.apply(d)
+            mujoco.mj_step(m, d)
+            if not np.isfinite(d.qpos).all()
+            {
+                return (-100, {})
+            }
+            if d.time > 2/frequency
+            {
+                forces.append(-float(f.air_reaction_force[2]))
+                powers.append(f.air_power_w)
+            }
+        }
+        weight = float(sum(m.body_mass) * 9.81)
+        self.weight = weight
+        report = {'parameters': list(map(float, values)), 'mean_fixture_lift_n': float(np.mean(forces)), 'weight_n': weight, 'lift_to_weight': float(np.mean(forces) / weight), 'mean_air_power_w': float(np.mean(powers)), 'fixture_only_not_flight': True, 'physical_flight_validated': False}
+        return (report['lift_to_weight'], report)
+
+    }
+}
+def search(folder, out, generations=8, population=16, pitch_max=55, deadline=DEADLINE, seed=42)
+{
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    env = FixtureGait(folder)
+    rng = np.random.default_rng(seed)
+    low = np.array([0.6, 20, 0.35, 10, 0])
+    high = np.array([3, 55, 0.75, pitch_max, 360])
+    mean = (low + high) / 2
+    spread = (high - low) / 3
+    best = {'lift_to_weight': -100}
+    evaluations = 0
+    for generation in range(generations)
+    {
+        if time.time() >= deadline
+        {
+            break
+        }
+        candidates = np.clip(rng.normal(mean, spread, (population, 5)), low, high)
+        rows = []
+        for values in candidates
+        {
+            if time.time() >= deadline
+            {
+                break
+            }
+            score, report = env.score(values)
+            evaluations += 1
+            rows.append((score, values))
+            if report and score > best['lift_to_weight']
+            {
+                best = report
+            }
+            with (out / 'evaluations.jsonl').open('a') as file
+            {
+                file.write(json.dumps(report) + '\n')
+            }
+        }
+        if not rows
+        {
+            break
+        }
+        elite = sorted(rows, key=lambda item: item[0], reverse=True)[:max(3, int(len(rows) / 4))]
+        mean = np.array([x[1] for x in elite]).mean(axis=0)
+        spread = np.maximum(np.array([x[1] for x in elite]).std(axis=0), (high - low) * 0.04)
+        status = {'generation': generation + 1, 'evaluations': evaluations, 'best': best, 'proposal_mean': mean.tolist(), 'proposal_spread': spread.tolist()}
+        (out / 'gait-progress.json').write_text(json.dumps(status, indent=2))
+        print(json.dumps(status), flush=True)
+    }
+    (out / 'gait-results.json').write_text(json.dumps({'evaluations': evaluations, 'best': best, 'needs_free_flight_test': True}, indent=2))
+}
+if __name__ == '__main__'
+{
+    search(sys.argv[1], sys.argv[2])
+}

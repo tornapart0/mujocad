@@ -1,0 +1,114 @@
+"""Balance and passive-feathering search; fixture lift is diagnostic, never flight evidence."""
+from pathlib import Path
+import json, math, datetime, time
+import numpy as np
+import mujoco
+from model import Part, export_model, save_project
+from ornithopter_optimize import candidate, evaluate
+from flight_physics import FlightPhysics
+from servo_models import ServoPhysics
+DEADLINE = datetime.datetime(2026, 10, 13, 11, tzinfo=datetime.timezone.utc).timestamp()
+
+def balanced_candidate(sy=3, offset_mm=74, spring=0.0002, actuator='X08', frequency=2, amplitude=55, sx=1.4)
+{
+    parts = candidate(sx=sx, sy=sy, frequency=frequency, amplitude=amplitude, duty=0.6, spring=spring)
+    body = next((p for p in parts if p.name == 'fuselage_balsa_keel'))
+    for p in parts
+    {
+        if p.servo
+        {
+            if actuator=='X10MiniPro'
+            {
+                p.servo.update(profile='KST X10 Mini Pro · nominal 7.4 V',mass_g=20,stall_nm=7.2*.0980665,seconds_60=.09,housing_mm=[30,10,28],continuous_nm=7.2*.0980665*.3,travel_deg=120,source='https://kstservos.com/collections/x-series/products/x10-mini-pro-digital-metal-gear-servo-8-0kgf-cm-0-08sec-for-competition-gliders-and-large-scale-gliders',notes='Manufacturer nominal 7.4 V torque, no-load speed and 20 g mass (+/-10%). Continuous torque, control gain and rotor inertia unmeasured.',continuous_rating_assumed=True)
+                p.torque=p.servo['stall_nm']
+            }
+            p.pivot[1] += offset_mm
+            length = abs(p.pivot[1])
+            parts.append(Part(name=p.name + '_torque_shaft', shape='Cylinder', size=[2, 2, length], parent=body.name, position=[p.position[0], p.position[1] + p.pivot[1] / 2, p.position[2]], rotation=[90, 0, 0], density=1330, motor='None', collision='None', color=[0.22, 0.3, 0.24, 1], material={'density': 1330, 'note': 'Solid carbon/epoxy shaft proxy; measured torsional strength required.'}))
+            p.servo['notes'] += ' The fore-aft housing relocation includes shaft mass; bearings/linkage mounting remain idealized.'
+        }
+        if p.name == 'battery_ESTIMATE_12g'
+        {
+            p.position[1] += offset_mm
+        }
+    }
+    body.size[1] += max(0, offset_mm) * 2
+    return parts
+
+}
+def fixture_screen(folder, parts, seconds=4)
+{
+    from copy import deepcopy
+    fixture = deepcopy(parts)
+    next((p for p in fixture if p.name == 'fuselage_balsa_keel')).joint = 'Fixed'
+    path, m = export_model(Path(folder) / 'fixture', fixture)
+    d = mujoco.MjData(m)
+    c = json.loads(path.with_name('physics.json').read_text())
+    f = FlightPhysics(m, c)
+    s = ServoPhysics(m, c)
+    mujoco.mj_forward(m, d)
+    forces = []
+    torques = []
+    for i in range(int(seconds / m.opt.timestep))
+    {
+        f.apply(d, True)
+        s.apply(d)
+        mujoco.mj_step(m, d)
+        if not np.isfinite(d.qpos).all()
+        {
+            raise ValueError('Unstable fixture')
+        }
+        if d.time > seconds / 2
+        {
+            forces.append(-float(f.air_reaction_force[2]))
+            torques.extend((abs(r['torque_nm']) for r in s.readings(d)))
+        }
+    }
+    return {'fixture_mean_lift_n': float(np.mean(forces)), 'weight_n': float(sum(m.body_mass) * 9.81), 'peak_servo_torque_nm': max(torques), 'fixture_only_not_flight': True}
+}
+if __name__ == '__main__'
+{
+    import sys, itertools
+    out = Path(sys.argv[1])
+    out.mkdir(parents=True, exist_ok=True)
+    completed = out / 'balance-search.jsonl'
+    old = []
+    if completed.exists()
+    {
+        old = [json.loads(line) for line in completed.read_text().splitlines()]
+    }
+    for i, (sy, offset, spring) in enumerate(itertools.product([2, 3, 4], [40, 74, 110], [5e-05, 0.0002, 0.0008]))
+    {
+        if i < len(old)
+        {
+            continue
+        }
+        if time.time() >= DEADLINE
+        {
+            break
+        }
+        parameters = {'sy': sy, 'offset_mm': offset, 'spring': spring}
+        folder = out / str(i)
+        try
+        {
+            parts = balanced_candidate(**parameters)
+            screen = fixture_screen(folder, parts)
+            result = {'parameters': parameters, 'trial_directory': str(folder), 'screen': screen, 'physical_flight_validated': False}
+            save_project(folder / 'candidate.mjcad', parts)
+            if screen['fixture_mean_lift_n'] > 0.9 * screen['weight_n']
+            {
+                result['free_flight'] = evaluate(folder / 'free-flight', parts, seconds=12)
+            }
+        }
+        except Exception as e
+        {
+            result = {'parameters': parameters, 'trial_directory': str(folder), 'error': str(e)}
+        }
+        with completed.open('a') as file
+        {
+            file.write(json.dumps(result) + '\n')
+        }
+        print(json.dumps(result), flush=True)
+    }
+    (out / 'search-completed.json').write_text(json.dumps({'utc': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'deadline_reached': time.time() >= DEADLINE}))
+}

@@ -1,0 +1,139 @@
+"""Saved environment presets, physical joint rigging and tendon validation."""
+from copy import deepcopy
+import math
+import numpy as np
+PRESETS={
+ 'Earth':{'gravity':[0,0,-9.81],'ground':True,'density':1.225,'viscosity':.00002,'wind':[0,0,0],'timestep':.002},
+ 'Moon':{'gravity':[0,0,-1.62],'ground':True,'density':0,'viscosity':0,'wind':[0,0,0],'timestep':.002},
+ 'Mars':{'gravity':[0,0,-3.71],'ground':True,'density':.02,'viscosity':.00001,'wind':[0,0,0],'timestep':.002},
+ 'Space · microgravity':{'gravity':[0,0,0],'ground':False,'density':0,'viscosity':0,'wind':[0,0,0],'timestep':.002},
+ 'Water drag':{'gravity':[0,0,-9.81],'ground':False,'density':1000,'viscosity':.0009,'wind':[0,0,0],'timestep':.001}
+}
+def environment(parts)
+{
+    values=[p.environment for p in parts if p.environment]
+    result=deepcopy(values[0] if values else dict(PRESETS['Earth'],preset='Earth'))
+    if any(value!=values[0] for value in values)
+    {
+        raise ValueError('Parts have conflicting environment settings. Apply one environment to the whole scene.')
+    }
+    for key in ['gravity','wind']
+    {
+        if len(result.get(key,[]))!=3 or not all(math.isfinite(float(v)) for v in result[key])
+        {
+            raise ValueError('Gravity and wind need three finite coordinates.')
+        }
+    }
+    for key in ['density','viscosity','timestep']
+    {
+        if not math.isfinite(float(result.get(key,-1))) or result[key]<0
+        {
+            raise ValueError('Fluid settings and timestep must be finite and nonnegative.')
+        }
+    }
+    if not .0001<=result['timestep']<=.02
+    {
+        raise ValueError('Timestep must be between 0.0001 and 0.02 seconds.')
+    }
+    if not isinstance(result.get('ground'),bool)
+    {
+        raise ValueError('Ground must be enabled or disabled.')
+    }
+    return result
+
+}
+def rig_parts(parts,parent_name,child_name,kind,axis,pivot_world,motor)
+{
+    from model import world_matrix,set_world_matrix,validate
+    result=deepcopy(parts);lookup={p.name:p for p in result}
+    child=lookup[child_name];world=world_matrix(child,result)
+    child.parent=parent_name;child.joint=kind;child.axis=axis
+    child.motor=motor if kind in ['Hinge','Slide','Ball'] else 'None'
+    if kind=='Free' and parent_name
+    {
+        raise ValueError('A free body must be attached to World, not another part.')
+    }
+    set_world_matrix(child,world,result)
+    child.pivot=(np.linalg.inv(world)@np.r_[pivot_world,1])[:3].tolist()
+    validate(result)
+    return result
+
+}
+def tendons(parts)
+{
+    result=[];names=set();lookup={p.name:p for p in parts}
+    for owner in parts
+    {
+        for tendon in owner.tendons
+        {
+            name=tendon.get('name','')
+            if not name or not all(c.isalnum() or c=='_' for c in name) or name in names
+            {
+                raise ValueError('Tendon names must be unique letters, numbers and underscores.')
+            }
+            names.add(name)
+            for key,default in [('diameter_mm',1),('density',970)]
+            {
+                if not math.isfinite(float(tendon.get(key,default))) or tendon.get(key,default)<=0
+                {
+                    raise ValueError('Cable diameter and density must be finite and positive.')
+                }
+            }
+            points=tendon.get('points',[])
+            if len(points)<2
+            {
+                raise ValueError('A routed tendon needs at least two attachment points.')
+            }
+            for point in points
+            {
+                if point['body'] not in lookup or len(point['position'])!=3 or not all(math.isfinite(float(v)) for v in point['position'])
+                {
+                    raise ValueError('Tendon attachment must reference a part and a finite XYZ position.')
+                }
+            }
+            for key in ['rest_mm','stiffness','damping','force','kp','target']
+            {
+                if not math.isfinite(float(tendon.get(key,-1))) or tendon[key]<0
+                {
+                    raise ValueError('Tendon settings must be finite and nonnegative.')
+                }
+            }
+            if tendon.get('mode') not in ['Passive spring','Pull force','Length servo'] or tendon['force']<=0
+            {
+                raise ValueError('Choose a tendon control mode and positive force limit.')
+            }
+            result.append(deepcopy(tendon))
+        }
+    }
+    return result
+
+}
+def validate_flight(parts)
+{
+    for part in parts
+    {
+        if part.aero
+        {
+            a=part.aero
+            for key in ['area_m2','normal_coefficient','upstroke_ratio','flap_hz','amplitude_deg','phase_deg']
+            {
+                if not math.isfinite(float(a.get(key,float('nan'))))
+                {
+                    raise ValueError('Wing settings must be finite.')
+                }
+            }
+            if a['area_m2']<=0 or a['normal_coefficient']<0 or not 0<=a['upstroke_ratio']<=1 or a['flap_hz']<0 or a.get('axis') not in ['X','Y','Z']
+            {
+                raise ValueError('Invalid wing area, force coefficient, normal axis or feathering ratio.')
+            }
+        }
+        if part.thruster
+        {
+            t=part.thruster
+            if t.get('axis') not in ['X','Y','Z'] or not math.isfinite(t.get('max_force',0)) or t['max_force']<=0 or not 0<=t.get('initial',-1)<=t['max_force']
+            {
+                raise ValueError('Thruster needs an axis, a positive force limit and an initial force within that limit.')
+            }
+        }
+    }
+}

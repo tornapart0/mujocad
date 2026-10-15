@@ -1,0 +1,80 @@
+"""Full-cycle fixture loads and motor tracking diagnostics; never flight evidence."""
+from pathlib import Path
+from copy import deepcopy
+import json,math,sys
+import numpy as np,mujoco
+from model import load_project,export_model
+from flight_physics import FlightPhysics
+from servo_models import ServoPhysics
+
+def diagnose(project,out)
+{
+    out=Path(out)
+    parts=load_project(project)
+    root=next(p for p in parts if p.name=='fuselage_balsa_keel')
+    root.joint='Fixed'
+    path,m=export_model(out/'fixture',parts)
+    d=mujoco.MjData(m)
+    config=json.loads(path.with_name('physics.json').read_text())
+    flap=next(x['settings'] for x in config['wings'] if x['body']=='right_wing_hinge')
+    frequency=flap['flap_hz']
+    if frequency<=0
+    {
+        raise ValueError('Diagnostic needs a positive periodic flap frequency.')
+    }
+    flight=FlightPhysics(m,config)
+    motors=ServoPhysics(m,config)
+    logs={name:[] for name,_,_,_ in motors.entries}
+    forces=[]
+    powers=[]
+    collision_steps=0
+    pairs=set()
+    for step in range(int(8/frequency/m.opt.timestep))
+    {
+        flight.apply(d,True)
+        requested={name:float(d.ctrl[act]) for name,act,_,_ in motors.entries}
+        motors.apply(d)
+        mujoco.mj_step(m,d)
+        if not np.isfinite(d.qpos).all() or not np.isfinite(d.qvel).all()
+        {
+            raise ValueError('Nonfinite bench rejected.')
+        }
+        if d.time<=2/frequency
+        {
+            continue
+        }
+        collision_steps+=int(d.ncon>0)
+        for contact in d.contact
+        {
+            pairs.add((m.geom(contact.geom1).name,m.geom(contact.geom2).name))
+        }
+        forces.append(-float(flight.air_reaction_force[2]))
+        powers.append(flight.air_power_w)
+        for name,act,joint,settings in motors.entries
+        {
+            gear=abs(m.actuator_gear[act,0])
+            angle=float(d.qpos[m.jnt_qposadr[joint]])
+            speed=float(d.qvel[m.jnt_dofadr[joint]])
+            torque=float(d.actuator_force[act]*gear)
+            target=requested[name]/gear
+            limited=float(d.ctrl[act])/gear
+            omega=math.radians(60/settings['seconds_60'])*settings['voltage']/settings['rated_voltage']
+            available=(m.actuator_forcerange[act,1] if torque>=0 else -m.actuator_forcerange[act,0])*gear
+            logs[name].append([angle,speed,torque,target,limited,omega,float(abs(torque)>=.95*available and available>1e-8)])
+        }
+    }
+    servos=[]
+    for name,_,_,settings in motors.entries
+    {
+        a=np.array(logs[name])
+        servos.append({'name':name,'mass_g':settings['mass_g'],'supply_v':settings['voltage'],'stall_nm':settings['stall_nm'],'continuous_nm':settings['continuous_nm'],'continuous_rating_assumed':settings.get('continuous_rating_assumed',True),'observed_travel_deg':float(np.degrees(np.ptp(a[:,0]))),'peak_torque_nm':float(np.max(np.abs(a[:,2]))),'mean_absolute_torque_nm':float(np.mean(np.abs(a[:,2]))),'torque_saturation_fraction':float(np.mean(a[:,6])),'rms_requested_tracking_error_deg':float(np.degrees(np.sqrt(np.mean((a[:,3]-a[:,0])**2)))),'rms_slew_limited_tracking_error_deg':float(np.degrees(np.sqrt(np.mean((a[:,4]-a[:,0])**2)))),'peak_no_load_speed_fraction':float(np.max(np.abs(a[:,1])/a[:,5])),'mean_positive_mechanical_power_w':float(np.mean(np.maximum(a[:,1]*a[:,2],0)))})
+    }
+    weight=float(sum(m.body_mass)*9.81)
+    report={'fixture_only_not_flight':True,'physical_flight_validated':False,'settling_cycles':2,'measurement_cycles':6,'mass_g':float(sum(m.body_mass)*1000),'weight_n':weight,'mean_fixture_lift_n':float(np.mean(forces)),'lift_to_weight':float(np.mean(forces)/weight),'mean_air_power_w':float(np.mean(powers)),'collision_steps':collision_steps,'collision_pairs':sorted(pairs),'servos':servos,'limitations':'Linear torque-speed approximation, rigid panels and no battery sag/thermal calibration. Reported tracking error includes servo slew limiting; fixture support supplies robot position/orientation constraints.'}
+    (out/'bench-diagnostics.json').write_text(json.dumps(report,indent=2))
+    return report
+}
+if __name__=='__main__'
+{
+    print(json.dumps(diagnose(sys.argv[1],sys.argv[2]),indent=2))
+}

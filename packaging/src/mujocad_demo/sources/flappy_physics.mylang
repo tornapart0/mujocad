@@ -1,0 +1,107 @@
+"""Adapted from Purdue Flappy Wing.cpp (Fan Fei, 2018), MIT license.
+See LICENSE-Flappy.txt. No fitted lift multiplier: published CN and CP expressions.
+Zero stroke-plane/deviation angles, as used by upstream fwmav.py.
+"""
+import math
+import numpy as np
+import mujoco
+
+def coefficients(alpha)
+{
+    cn=1.8*math.sin(2*alpha)*math.cos(alpha)+1.95*math.sin(alpha)-1.5*math.cos(2*alpha)*math.sin(alpha)
+    cp=.46-.332*math.cos(alpha)-.037*math.cos(3*alpha)-.013*math.cos(5*alpha)
+    return cn,cp
+}
+
+def reference_load(c,index,body_velocity,stroke,stroke_speed,pitch,pitch_speed,rho)
+{
+    p,q,r,u,v,w=body_velocity
+    sign=1 if index==0 else -1
+    s,co=math.sin(stroke),math.cos(stroke)
+    length=c['wing_length']
+    chord=c['mean_chord']
+    shoulder=c['left_shoulder_width'] if index==0 else c['right_shoulder_width']
+    offset=c['stroke_plane_offset']
+    o1=sign*p*co+q*s
+    o0=w+sign*p*shoulder
+    i1=sign*r+stroke_speed
+    i0=sign*(r*shoulder*co-(v-p*offset)*s)-(u+q*offset)*co
+    span_cp=length*c['r33']/c['r22']
+    flow=i1*span_cp+i0
+    delta=math.atan((o1*span_cp+o0)/flow) if flow!=0 else 0.
+    alpha=pitch+float(np.sign(flow))*math.pi/2-delta
+    cn,cp=coefficients(alpha)
+    a2=i1*i1+o1*o1
+    a1=2*(i1*i0+o1*o0)
+    a0=i0*i0+o0*o0
+    force=.5*rho*chord*cn*(a2*length**3*c['r22']+a1*length**2*c['r11']+a0*length*c['r00'])
+    moment=-.5*rho*chord**2*cn*cp*(a2*length**3*c['z_cp2']+a1*length**2*c['z_cp1']+a0*length*c['z_cp0'])
+    chord_cp=-moment/force if force!=0 else 0.
+    damping=-.125*rho*abs(pitch_speed)*pitch_speed*5*length*chord**4*c['z_rd']
+    return force,span_cp,chord_cp,damping
+}
+
+def wing_load(model,data,wing,rho,wind)
+{
+    settings=wing['settings']
+    c=settings['reference_parameters']
+    index=settings['wing_index']
+    sign=1 if index==0 else -1
+    body=model.body(wing['body']).id
+    root=model.body(settings['root']).id
+    rotation=data.xmat[root].reshape(3,3)
+    velocity=np.zeros(6)
+    mujoco.mj_objectVelocity(model,data,mujoco.mjtObj.mjOBJ_BODY,root,velocity,0)
+    velocity=np.r_[rotation.T@velocity[:3],rotation.T@(velocity[3:]-np.asarray(wind))]
+    stroke=model.joint(settings['stroke']+'_joint')
+    feather=model.joint(wing['body']+'_joint')
+    fn,span,chord,rd=reference_load(c,index,velocity,sign*float(data.qpos[stroke.qposadr[0]]),sign*float(data.qvel[stroke.dofadr[0]]),float(data.qpos[feather.qposadr[0]]),float(data.qvel[feather.dofadr[0]]),rho)
+    matrix=data.xmat[body].reshape(3,3)
+    force=matrix@np.array([fn,0.,0.])
+    point=data.xpos[body]+matrix@(np.asarray(settings.get('origin_m',[0,0,0]))+np.array([0.,sign*span,-chord]))
+    torque=np.cross(point-data.xipos[body],force)+matrix@np.array([0.,rd,0.])
+    return force,torque
+}
+
+class FlappyMotors
+{
+    def __init__(self,model,parameters,supply_voltage=18.)
+    {
+        self.model=model
+        self.parameters=parameters
+        self.supply=float(supply_voltage)
+        self.current=np.zeros(2)
+        self.voltage=np.zeros(2)
+        self.electric_power_w=0.
+    }
+    def apply(self,data,voltages)
+    {
+        self.voltage=np.clip(voltages,-self.supply,self.supply)
+        for i,label in enumerate(['left','right'])
+        {
+            c=self.parameters[label+'_motor_properties']
+            j=self.model.joint(label+'_stroke_joint')
+            sign=1 if i==0 else -1
+            speed=sign*float(data.qvel[j.dofadr[0]])
+            motor_speed=speed*c['gear_ratio']
+            current=(self.voltage[i]-c['torque_constant']*motor_speed)/c['resistance']
+            self.current[i]=current
+            torque=(c['torque_constant']*current-c['damping_coefficient']*motor_speed-c['friction_coefficient']*float(np.sign(speed)))*c['gear_ratio']*c['mechanical_efficiency']
+            data.ctrl[self.model.actuator(label+'_stroke_motor').id]=sign*torque
+        }
+        self.electric_power_w=float(np.maximum(0,self.voltage*self.current).sum())
+    }
+}
+
+def voltage_signal(frequency,amplitude,differential,bias,split,t)
+{
+    result=[]
+    phase=(t*frequency)%1
+    for delta,sc in [(differential,-split),(-differential,split)]
+    {
+        duty=.5+sc
+        angle=math.pi*phase/duty if phase<duty else math.pi*(phase-1)/(1-duty)
+        result.append((amplitude+delta)*math.cos(angle)+bias)
+    }
+    return np.clip(result,-18,18)
+}

@@ -1,0 +1,79 @@
+// Canonical Tay's Sensible Lang launcher; Python bridge only bootstraps it.
+import argparse, importlib.util, json, math, os, runpy, shutil, sys
+from pathlib import Path
+from mujocad_demo.compiler.compiler import translate
+VERSION = '0.6.0'
+
+def prepare(workspace)
+{
+    workspace.mkdir(parents=True, exist_ok=True)
+    sources = Path(__file__).parent / 'sources'
+    for source in sources.glob('*.mylang')
+    {
+        code = '# Generated from ' + source.name + '\n' + translate(source.read_text()).code
+        compile(code, source.name, 'exec')
+        output = workspace / source.with_suffix('.py').name
+        temporary = output.with_suffix('.py.next')
+        temporary.write_text(code)
+        temporary.replace(output)
+    }
+    shutil.copytree(sources / 'Examples', workspace / 'Examples', dirs_exist_ok=True)
+    for name in ['requirements-training.txt','servo_catalog.json','LICENSE-Flappy.txt','.wakatime-project']
+    {
+        shutil.copy2(sources/name,workspace/name)
+    }
+    sys.path.insert(0, str(workspace))
+    return workspace
+}
+
+def main()
+{
+    parser = argparse.ArgumentParser(description='MuJoCoCAD solarpunk robot demo. Run without arguments to open the CAD editor.')
+    parser.add_argument('--version', action='version', version=VERSION)
+    parser.add_argument('--workspace', type=Path, help='Writable workspace for autosaves, exports, and training runs')
+    parser.add_argument('--check', action='store_true', help='Check installed CAD/simulation/training dependencies')
+    parser.add_argument('--headless', action='store_true', help='Export and simulate the example arm without opening a window')
+    parser.add_argument('--steps', type=int, default=2000, help='Headless simulation steps (default 2000)')
+    args = parser.parse_args()
+    if args.steps < 1 or args.steps > 1000000
+    {
+        parser.error('--steps must be between 1 and 1000000')
+    }
+    if args.check
+    {
+        required = ['build123d', 'PySide6', 'pyqtgraph', 'mujoco', 'coacd', 'trimesh', 'OpenGL']
+        missing = [name for name in required if importlib.util.find_spec(name) is None]
+        print(json.dumps({'version': VERSION, 'python': sys.version.split()[0], 'missing': missing, 'training_installed': importlib.util.find_spec('stable_baselines3') is not None}, indent=2))
+        return 1 if missing else 0
+    }
+    default = Path.home() / ('Library/Application Support' if sys.platform == 'darwin' else '.local/share') / 'MuJoCoCAD' / 'pip-demo' / VERSION
+    workspace = prepare((args.workspace or default).expanduser().resolve())
+    os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
+    os.environ.setdefault('VECLIB_MAXIMUM_THREADS', '1')
+    os.chdir(workspace)
+    if args.headless
+    {
+        import mujoco
+        from model import demo, export_model, save_project
+        parts = demo()
+        parts[1].control = 30
+        save_project(workspace / 'DemoRobot.mjcad', parts)
+        path, model = export_model(workspace / 'DemoExport', parts)
+        data = mujoco.MjData(model)
+        controls = json.loads(path.with_name('controls.json').read_text())
+        data.ctrl[:] = [control['initial'] for control in controls]
+        for i in range(args.steps)
+        {
+            mujoco.mj_step(model, data)
+        }
+        if not all(math.isfinite(float(x)) for x in data.qpos)
+        {
+            raise RuntimeError('The demo simulation produced non-finite positions.')
+        }
+        print(json.dumps({'model': str(path), 'simulated_seconds': data.time, 'joint_degrees': [math.degrees(float(x)) for x in data.qpos], 'target_degrees': 30}, indent=2))
+        return 0
+    }
+    sys.argv = [str(workspace / 'app.py')]
+    runpy.run_path(str(workspace / 'app.py'), run_name='__main__')
+    return 0
+}

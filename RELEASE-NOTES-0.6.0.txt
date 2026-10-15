@@ -1,0 +1,11 @@
+MuJoCoCAD 0.6.0 · Mechanical rigging update
+
+New: M3/M4 socket screws and rigid screw connections; steel coil CAD geometry; passive hinge/slider springs; springs between bodies; visible routed tendon controls with frictionless guides through bodies; attachment loops and end knots with mass; cable mass/inertia; two-blade pitched propeller geometry, motor/ESC mass, current-limited electrical shaft torque and static RPM-squared thrust/drag torque; editable calibration parameters. Added MechanicalRig and PropellerBench examples. Includes accumulated CAD, material, servo, sketch-region, grid, mirroring and training additions. Portable bundled simulation/training runtime fixed. Canonical application and tests remain .mylang.
+
+Use Rigging → Add mechanical component, Spring on selected joint, Spring between bodies, Tendons and cable control, or Propeller calibration. Choose Rigid screw M3/M4 in the Joint tab to lock two parts and add a fastener at the pivot. For routed cables, intermediate rows are frictionless guides; cut the corresponding physical holes separately.
+
+Validation: exact CAD solids, native MuJoCo export, restoring spring force, fixed connection degrees of freedom, route sites and cable mass, save/load, propeller RPM²/current limits/vacuum/reversed rotation, native OpenGL editor, packaged runtime, PPO wizard/save/evaluate/resume/stop workflow.
+
+Limits: screws have plain shafts; no thread/preload/failure model. Knots and loops are attachment hardware, not simulated knot mechanics. Tendons use ideal frictionless guide sites, no cable-solid collision or breaking strength; cable mass is lumped at route points. Coil shape does not derive stiffness and does not deform as a flexible solid. Propeller coefficients and motor defaults are illustrative static assumptions; require measured calibration. No forward-flight, ground-effect, thermal or flexible-blade model; battery mass must be added separately. No claim of validated ornithopter takeoff or physical flight. Existing flight research remains experimental.
+
+macOS arm64 app includes Python, CAD, MuJoCo and training dependencies. Ad-hoc signed, not Apple notarized. No API keys or account credentials included. Hackatime uses the locally configured account and genuine CAD input with a ten-minute idle timeout; no time is fabricated.

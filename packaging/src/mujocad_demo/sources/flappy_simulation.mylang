@@ -1,0 +1,246 @@
+"""Physical reference-derived flapping vehicle, voltage drive and feedback trials."""
+from pathlib import Path
+import json,math,time,argparse
+import xml.etree.ElementTree as E
+import numpy as np,mujoco
+from flight_physics import FlightPhysics
+from flappy_physics import FlappyMotors,voltage_signal
+from flappy_pid import PIDController
+
+class FlappyVehicle
+{
+    def __init__(self,folder,fixture=False)
+    {
+        self.folder=Path(folder)
+        self.scenario=json.loads((self.folder/'scenario.json').read_text())
+        self.config=json.loads((self.folder/'physics.json').read_text())
+        path=self.folder/'robot.xml'
+        if fixture
+        {
+            xml=E.parse(path)
+            E.SubElement(xml.getroot().find('equality'),'weld',body1='torso',solref='.002 1',solimp='.999 .999 .001')
+            path=self.folder/'robot-capacity-fixture.xml'
+            xml.write(path)
+        }
+        self.model=mujoco.MjModel.from_xml_path(str(path))
+        self.data=mujoco.MjData(self.model)
+        self.root=self.model.body('torso').id
+        self.base_mass=self.model.body_mass.copy()
+        self.base_inertia=self.model.body_inertia.copy()
+        self.fixture=fixture
+        self.reset()
+    }
+    def reset(self,seed=0,vary=False)
+    {
+        rng=np.random.default_rng(seed)
+        factor=float(rng.uniform(1,1.05)) if vary else 1.
+        self.model.body_mass[:]=self.base_mass*factor
+        self.model.body_inertia[:]=self.base_inertia*factor
+        mujoco.mj_setConst(self.model,self.data)
+        mujoco.mj_resetData(self.model,self.data)
+        self.data.qvel[:]=0
+        self.flight=FlightPhysics(self.model,self.config)
+        if vary
+        {
+            self.flight.environment=dict(self.flight.environment,density=self.config['environment']['density']*float(rng.uniform(.9,1)))
+        }
+        voltage=18*float(rng.uniform(.95,1)) if vary else 18.
+        self.motors=FlappyMotors(self.model,self.scenario['parameters'],voltage)
+        self.energy_j=0.
+        self.controller=PIDController(.002)
+        self.controller.hover_voltage_=9.3
+        self.controller.voltage_amplitude_max_=18
+        self.start_height=float(self.data.qpos[2])
+        self.control=np.array([0.,0.,0.,0.])
+        self.steps=0
+        self.voltage_fraction=1.
+        self.peak_power_w=0.
+        mujoco.mj_forward(self.model,self.data)
+    }
+    def observation(self)
+    {
+        velocity=np.zeros(6)
+        mujoco.mj_objectVelocity(self.model,self.data,mujoco.mjtObj.mjOBJ_BODY,self.root,velocity,0)
+        r=self.data.xmat[self.root].reshape(3,3)
+        return np.r_[r.ravel(),self.data.xpos[self.root],velocity[3:],r.T@velocity[:3]]
+    }
+    def powered_step(self,control)
+    {
+        d,m=self.data,self.model
+        volts=voltage_signal(self.scenario['frequency_hz'],*control,float(d.time))
+        # Soft electrical start; neither body nor wing positions/velocities are imposed.
+        gain=min(1.,float(d.time)/.25)
+        volts*=gain*gain*(3-2*gain)
+        if self.scenario['onboard_power']
+        {
+            battery=self.scenario['battery']
+            available=min(battery['converter_output_power_w'],battery['voltage_nominal']*battery['current_limit_a']*battery['converter_efficiency'])
+            capacity=battery['voltage_nominal']*battery['capacity_mah']*3.6
+            if self.energy_j>=capacity*.8
+            {
+                volts[:]=0
+            }
+            def power(scale)
+            {
+                total=0.
+                for i,label in enumerate(['left','right'])
+                {
+                    c=self.scenario['parameters'][label+'_motor_properties']
+                    j=m.joint(label+'_stroke_joint')
+                    speed=(1 if i==0 else -1)*d.qvel[j.dofadr[0]]
+                    v=float(np.clip(volts[i]*scale,-self.motors.supply,self.motors.supply))
+                    total+=max(0.,v*(v-c['torque_constant']*speed*c['gear_ratio'])/c['resistance'])
+                }
+                return total
+            }
+            scale=1.
+            if power(scale)>available
+            {
+                lo,hi=0.,1.
+                for _ in range(16)
+                {
+                    middle=(lo+hi)/2
+                    if power(middle)>available
+                    {
+                        hi=middle
+                    }
+                    else
+                    {
+                        lo=middle
+                    }
+                }
+                scale=lo
+            }
+            self.voltage_fraction=scale
+            volts*=scale
+        }
+        self.flight.apply(d,False)
+        d.xfrc_applied[self.root,:]=0
+        if self.scenario['onboard_power']
+        {
+            # Dissipative envelope drag; no upward bias or body lift.
+            r=d.xmat[self.root].reshape(3,3)
+            v=np.zeros(6)
+            mujoco.mj_objectVelocity(m,d,mujoco.mjtObj.mjOBJ_BODY,self.root,v,0)
+            local=r.T@(v[3:]-np.asarray(self.config['environment']['wind']))
+            drag=-.5*self.config['environment']['density']*1.2*np.array([.0009,.0018,.0012])*local*np.abs(local)
+            d.xfrc_applied[self.root,:3]=r@drag
+        }
+        self.motors.apply(d,volts)
+        self.peak_power_w=max(self.peak_power_w,self.motors.electric_power_w)
+        self.energy_j+=self.motors.electric_power_w*m.opt.timestep/(self.scenario['battery']['converter_efficiency'] if self.scenario['onboard_power'] else 1)
+        mujoco.mj_step(m,d)
+        self.steps+=1
+    }
+    def feedback_step(self,residual=None)
+    {
+        self.controller.pos_target_z_=self.start_height+self.scenario['target_height_m']*min(1.,float(self.data.time)/2)
+        self.control=self.controller.get_action(self.observation())
+        if residual is not None
+        {
+            self.control+=np.asarray(residual)*np.array([2.,.5,.5,.025])
+        }
+        self.control=np.clip(self.control,[0,-3,-3.5,-.15],[18,3,3.5,.15])
+        for _ in range(round(.002/self.model.opt.timestep))
+        {
+            self.powered_step(self.control)
+        }
+    }
+}
+
+def capacity(folder)
+{
+    rows=[]
+    for voltage in [9.,12.,15.,18.]
+    {
+        env=FlappyVehicle(folder,True)
+        forces=[]
+        contacts=set()
+        for _ in range(round(2/env.model.opt.timestep))
+        {
+            env.powered_step([voltage,0,0,0])
+            if env.data.time>=1
+            {
+                forces.append(-float(env.flight.air_reaction_force[2]))
+                for c in env.data.contact
+                {
+                    names=sorted([env.model.geom(c.geom1).name,env.model.geom(c.geom2).name])
+                    if c.dist<-.00001 and not ('floor' in names and any('_ground_pad_' in n for n in names))
+                    {
+                        contacts.add(tuple(names))
+                    }
+                }
+            }
+        }
+        weight=float(env.model.body_mass.sum()*9.81)
+        row={'voltage_amplitude_v':voltage,'mean_wing_upward_force_n':float(np.mean(forces)),'weight_n':weight,'mean_lift_weight_ratio':float(np.mean(forces))/weight,'peak_power_w':env.peak_power_w,'electric_energy_j':env.energy_j,'unexpected_contact_pairs':sorted(contacts),'engine_warnings':sum(int(w.number) for w in env.data.warning)}
+        rows.append(row)
+        print(row,flush=True)
+    }
+    report={'protocol':'Stationary fixture diagnostic; only aerodynamic loads counted, never fixture reactions. Source 34Hz voltage actuation; 1s settling plus 34 complete commanded cycles. Not flight.','reference_only':not env.scenario['onboard_power'],'rows':rows,'required_lift_weight_ratio':1.2,'capacity_passed':any(r['mean_lift_weight_ratio']>=1.2 and not r['unexpected_contact_pairs'] and r['engine_warnings']==0 for r in rows),'physical_flight_validated':False}
+    (Path(folder)/'capacity.json').write_text(json.dumps(report,indent=2))
+    return report
+}
+
+def evaluate(folder,seconds=25,seeds=(101,202,303))
+{
+    rows=[]
+    for seed in seeds
+    {
+        env=FlappyVehicle(folder)
+        env.reset(seed,vary=True)
+        longest=airborne=0.
+        max_height=0.
+        drift=0.
+        min_up=1.
+        heights=[]
+        reason='Time limit'
+        for _ in range(round(seconds/.002))
+        {
+            env.feedback_step()
+            d,m=env.data,env.model
+            height=float(d.qpos[2]-env.start_height)
+            max_height=max(max_height,height)
+            horizontal=float(np.linalg.norm(d.qpos[:2]))
+            drift=max(drift,horizontal)
+            up=float(d.xmat[env.root].reshape(3,3)[2,2])
+            contact=any(m.geom(c.geom1).name=='floor' or m.geom(c.geom2).name=='floor' for c in d.contact)
+            good=not contact and height>.05 and up>=math.cos(math.radians(15)) and horizontal<=.25 and abs(float(d.qvel[2]))<=.25
+            airborne=airborne+.002 if good else 0.
+            longest=max(longest,airborne)
+            if good
+            {
+                heights.append(height)
+            }
+            min_up=min(min_up,up)
+            if not np.isfinite(d.qpos).all() or up<.5 or horizontal>.5 or height>1
+            {
+                reason='Attitude, drift or numerical failure'
+                break
+            }
+        }
+        row={'seed':seed,'seconds':float(env.data.time),'maximum_height_gain_m':max_height,'maximum_horizontal_drift_m':drift,'longest_qualifying_airborne_s':longest,'height_range_m':max(heights)-min(heights) if heights else None,'minimum_up':min_up,'weight_n':float(env.model.body_mass.sum()*9.81),'energy_j':env.energy_j,'peak_power_w':env.peak_power_w,'is_success':longest>=20 and bool(heights) and max(heights)-min(heights)<=.1,'reason':reason}
+        rows.append(row)
+        print(row,flush=True)
+        (Path(folder)/'flight-evaluation.json').write_text(json.dumps({'controller':'Adapted source PID, no learned policy','all_seeds_passed':all(r['is_success'] for r in rows) and len(rows)==len(seeds),'expected_seeds':list(seeds),'reference_only':not env.scenario['onboard_power'],'physical_flight_validated':False,'rows':rows},indent=2))
+    }
+    return rows
+}
+
+if __name__=='__main__'
+{
+    parser=argparse.ArgumentParser()
+    parser.add_argument('folder',type=Path)
+    parser.add_argument('--capacity',action='store_true')
+    parser.add_argument('--seconds',type=float,default=25)
+    parser.add_argument('--seed',type=int)
+    args=parser.parse_args()
+    if args.capacity
+    {
+        capacity(args.folder)
+    }
+    else
+    {
+        evaluate(args.folder,args.seconds,(args.seed,) if args.seed is not None else (101,202,303))
+    }
+}

@@ -1,0 +1,31 @@
+"""Resume an existing ground-flight snapshot through the built-in TrainingPanel."""
+from pathlib import Path
+import sys,json
+from PySide6 import QtWidgets as W,QtCore as C
+from training_ui import TrainingPanel
+from app import STYLE
+folder=Path(sys.argv[1]).resolve()
+config=json.loads((folder/'task.json').read_text())
+if config['goal']!='ground_flight' or not (folder/'policy.zip').exists()
+{
+    raise ValueError('Choose an existing ground-flight training checkpoint.')
+}
+config['steps']=51200
+app=W.QApplication(sys.argv)
+app.setApplicationName('MuJoCoCAD')
+app.setStyle('Fusion')
+app.setStyleSheet(STYLE)
+panel=TrainingPanel(folder,config)
+panel.show()
+panel.raise_()
+panel.activateWindow()
+
+def record()
+{
+    (folder/'continuation-status.json').write_text(json.dumps({'running':panel.running,'state':panel.state.text(),'additional_steps_requested':config['steps'],'entry_point':'TrainingPanel.start(resume=True)'},indent=2))
+}
+recorder=C.QTimer()
+recorder.timeout.connect(record)
+recorder.start(2000)
+C.QTimer.singleShot(300,lambda:panel.start(True))
+sys.exit(app.exec())

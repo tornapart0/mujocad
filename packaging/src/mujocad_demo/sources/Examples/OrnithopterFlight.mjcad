@@ -1,0 +1,328 @@
+{
+  "format": "MuJoCoCAD",
+  "version": 2,
+  "units": "mm",
+  "parts": [
+    {
+      "name": "flight_body",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          -9.81
+        ],
+        "ground": true,
+        "density": 1.225,
+        "viscosity": 2e-05,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Earth"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {},
+      "size": [
+        55,
+        20,
+        15
+      ],
+      "position": [
+        0,
+        0,
+        200
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "",
+      "joint": "Free",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1000.0,
+      "mass": 0.02,
+      "torque": 2.0,
+      "motor": "Torque",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.76,
+        0.65,
+        0.4,
+        1
+      ]
+    },
+    {
+      "name": "left_wing",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          -9.81
+        ],
+        "ground": true,
+        "density": 1.225,
+        "viscosity": 2e-05,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Earth"
+      },
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.01395,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 0.15,
+        "axis": "Z",
+        "flap_hz": 4,
+        "amplitude_deg": -35,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {
+        "mass_g": 5,
+        "stall_nm": 0.0588399,
+        "continuous_nm": 0.01765197,
+        "seconds_60": 0.1,
+        "voltage": 4.8,
+        "rated_voltage": 4.8,
+        "travel_deg": 180,
+        "housing_mm": [
+          25,
+          22,
+          12
+        ],
+        "rotor_inertia": 1e-06,
+        "continuous_duty": false,
+        "mount": "Parent",
+        "kind": "Position",
+        "profile": "5 g \u00b7 SG51R \u00b7 vendor specs",
+        "source": "https://www.adafruit.com/product/2201",
+        "amazon_url": "https://www.amazon.com/s?k=SG51R+5g+servo",
+        "notes": "Vendor specification; batch and clone differences require measurement.",
+        "continuous_rating_assumed": true
+      },
+      "material": {},
+      "size": [
+        155,
+        90,
+        1
+      ],
+      "position": [
+        -85,
+        0,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        77.5,
+        0,
+        0
+      ],
+      "parent": "flight_body",
+      "joint": "Hinge",
+      "axis": "Y",
+      "limits": [
+        -35,
+        35
+      ],
+      "unlimited": false,
+      "density": 20,
+      "mass": 0.0,
+      "torque": 0.0588399,
+      "motor": "Position",
+      "gear": 1,
+      "kp": 0.3,
+      "kv": 0.008,
+      "control": 0.0,
+      "damping": 0.001,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1.0
+      ]
+    },
+    {
+      "name": "right_wing",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          -9.81
+        ],
+        "ground": true,
+        "density": 1.225,
+        "viscosity": 2e-05,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Earth"
+      },
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.01395,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 0.15,
+        "axis": "Z",
+        "flap_hz": 4,
+        "amplitude_deg": 35,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {
+        "mass_g": 5,
+        "stall_nm": 0.0588399,
+        "continuous_nm": 0.01765197,
+        "seconds_60": 0.1,
+        "voltage": 4.8,
+        "rated_voltage": 4.8,
+        "travel_deg": 180,
+        "housing_mm": [
+          25,
+          22,
+          12
+        ],
+        "rotor_inertia": 1e-06,
+        "continuous_duty": false,
+        "mount": "Parent",
+        "kind": "Position",
+        "profile": "5 g \u00b7 SG51R \u00b7 vendor specs",
+        "source": "https://www.adafruit.com/product/2201",
+        "amazon_url": "https://www.amazon.com/s?k=SG51R+5g+servo",
+        "notes": "Vendor specification; batch and clone differences require measurement.",
+        "continuous_rating_assumed": true
+      },
+      "material": {},
+      "size": [
+        155,
+        90,
+        1
+      ],
+      "position": [
+        85,
+        0,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -77.5,
+        0,
+        0
+      ],
+      "parent": "flight_body",
+      "joint": "Hinge",
+      "axis": "Y",
+      "limits": [
+        -35,
+        35
+      ],
+      "unlimited": false,
+      "density": 20,
+      "mass": 0.0,
+      "torque": 0.0588399,
+      "motor": "Position",
+      "gear": 1,
+      "kp": 0.3,
+      "kv": 0.008,
+      "control": 0.0,
+      "damping": 0.001,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1.0
+      ]
+    }
+  ]
+}

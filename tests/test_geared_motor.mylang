@@ -1,0 +1,41 @@
+"""Electrical envelope must respect supply, back EMF, current limit and power."""
+from pathlib import Path
+import sys,json,math,numpy as np,mujoco
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from servo_models import ServoPhysics
+folder=Path(__file__).resolve().parents[2]/'Compact-Classroom-Ground-600'
+model=mujoco.MjModel.from_xml_path(str(folder/'robot.xml'))
+data=mujoco.MjData(model)
+config=json.loads((folder/'physics.json').read_text())
+physics=ServoPhysics(model,config)
+item=next(s for s in config['servos'] if s['body']=='drive_crank')['settings']
+e=item['electrical']
+act=model.actuator('drive_crank_motor').id
+j=model.joint('drive_crank_joint').id
+v=model.jnt_dofadr[j]
+kt=60/(2*math.pi*e['kv_rpm_v'])
+maximum=(e['current_limit_a']-e['idle_current_a'])*kt*e['reduction']*e['efficiency']
+for speed in np.linspace(-100,100,301)
+{
+    data.qvel[v]=speed
+    physics.apply(data)
+    low,high=model.actuator_forcerange[act]
+    assert -maximum-1e-10<=low<=0<=high<=maximum+1e-10
+    power=max(high*speed,low*speed)
+    assert power<=item['voltage']*e['current_limit_a']+1e-8
+}
+data.qvel[v]=100
+physics.apply(data)
+assert model.actuator_forcerange[act,1]==0
+assert next(s for s in config['servos'] if s['body']=='tail_pitch')['settings']['voltage']==6
+assert next(s for s in config['servos'] if s['body']=='drive_crank')['settings']['voltage']==7.4
+assert math.isclose(model.dof_armature[v],.9e-6*30**2)
+from flight_physics import FlightPhysics
+data.qvel[:]=0
+data.qvel[1]=-1
+mujoco.mj_forward(model,data)
+flight=FlightPhysics(model,config)
+flight.apply(data)
+assert -flight.air_reaction_force[2]>0
+assert all('floor' in [model.geom(c.geom1).name,model.geom(c.geom2).name] for c in data.contact)
+print('PASS geared BLDC: current cap, back-EMF speed ceiling, no mechanical power above electrical supply, reflected rotor inertia and separate tail supply')

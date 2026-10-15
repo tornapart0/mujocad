@@ -1,0 +1,90 @@
+"""Load and flight screening, with explicit limits on real-world conclusions."""
+from pathlib import Path
+import json
+import numpy as np
+import mujoco
+from model import export_model
+from flight_physics import FlightPhysics
+from servo_models import ServoPhysics
+
+def test_robot(folder, parts, seconds=3, step_degrees=30)
+{
+    path, model = export_model(folder, parts)
+    data = mujoco.MjData(model)
+    config = json.loads(path.with_name('physics.json').read_text())
+    flight = FlightPhysics(model, config)
+    servos = ServoPhysics(model, config)
+    for control in json.loads(path.with_name('controls.json').read_text())
+    {
+        data.ctrl[model.actuator(control['name']).id] = control['initial']
+    }
+    for name, act, joint, s in servos.entries
+    {
+        part = next((p for p in parts if p.name == name))
+        if s['kind'] == 'Position' and (not part.aero.get('flap_hz', 0))
+        {
+            data.ctrl[act] = np.clip(np.radians(step_degrees) * model.actuator_gear[act, 0], *model.actuator_ctrlrange[act])
+        }
+    }
+    mujoco.mj_forward(model, data)
+    roots = set()
+    for wing in config['wings']
+    {
+        body = model.body(wing['body']).id
+        while model.body_parentid[body] > 0
+        {
+            body = int(model.body_parentid[body])
+        }
+        roots.add(body)
+    }
+    robot_ids = [i for i in range(1, model.nbody) if int(model.body_rootid[i]) in roots] if roots else list(range(1, model.nbody))
+    mass = float(sum(model.body_mass[robot_ids]))
+    g = float(np.linalg.norm(model.opt.gravity))
+    up = -model.opt.gravity / g if g > 0 else np.array([0, 0, 1])
+
+    def height()
+    {
+        return float(np.dot(model.body_mass[robot_ids], data.xipos[robot_ids] @ up) / mass)
+    }
+    start = height()
+    samples = []
+    servo_stats = {name: [] for name, _, _, _ in servos.entries}
+    contact_samples = 0
+    for _ in range(int(seconds / model.opt.timestep))
+    {
+        flight.apply(data, auto_flap=True)
+        servos.apply(data)
+        wing_force = sum((float(np.dot(data.xfrc_applied[flight.bodyids[w['body']], :3], up)) for w in config['wings']))
+        mujoco.mj_step(model, data)
+        if not np.isfinite(data.qpos).all() or not np.isfinite(data.qvel).all()
+        {
+            raise ValueError('Simulation became unstable; no flight verdict can be computed.')
+        }
+        if data.time >= min(0.5, seconds / 4)
+        {
+            samples.append(wing_force)
+            contact_samples += int(data.ncon > 0)
+            for reading in servos.readings(data)
+            {
+                servo_stats[reading['name']].append(reading)
+            }
+        }
+    }
+    results = []
+    for name, act, joint, s in servos.entries
+    {
+        rows = servo_stats[name]
+        part = next((p for p in parts if p.name == name))
+        required_speed = abs(part.aero.get('amplitude_deg', 0)) * 2 * np.pi * part.aero.get('flap_hz', 0)
+        rated_speed = 60 / s['seconds_60'] * s['voltage'] / s['rated_voltage']
+        results.append({'part': name, 'profile': s.get('profile', 'Custom'), 'housing_mass_g': s['mass_g'], 'no_load_speed_deg_s': rated_speed, 'command_peak_speed_deg_s': required_speed, 'command_exceeds_no_load_speed': bool(required_speed > rated_speed), 'mean_tracking_error_deg': float(np.mean([r['error_deg'] for r in rows])), 'peak_actual_speed_deg_s': float(max((abs(r['speed_deg_s']) for r in rows))), 'peak_torque_nm': float(max((r['torque_nm'] for r in rows))), 'torque_limit_fraction': float(np.mean([r['saturated'] for r in rows])), 'stall_fraction': float(np.mean([r['stalled'] for r in rows])), 'source': s.get('source', 'Illustrative'), 'continuous_rating_assumed': s.get('continuous_rating_assumed', True)})
+    }
+    wing_lift = float(np.mean(samples))
+    weight = mass * g
+    delta = height() - start
+    anchored = any((model.body_jntnum[root] == 0 for root in roots))
+    verdict = 'No hover force required in microgravity' if g == 0 else 'Robot is anchored; lift-off cannot be tested' if anchored else 'Descended in this simulation' if delta < -0.01 else 'Rose in this simulation' if delta > 0.01 else 'Height approximately unchanged in this simulation'
+    result = {'duration_s': seconds, 'robot_mass_g': mass * 1000, 'added_servo_mass_g': config.get('servo_mass_kg', 0) * 1000, 'weight_n': weight, 'average_wing_upward_force_n': wing_lift, 'wing_force_to_weight_ratio': wing_lift / weight if weight else None, 'height_change_m': delta, 'contact_fraction': contact_samples / len(samples), 'thruster_count': sum((bool(p.thruster) for p in parts)), 'simulation_outcome': verdict, 'real_world_flight_verdict': 'Not validated: wing aerodynamics require measured-force calibration; servo torque-speed curves, continuous ratings, rotor inertia and controller gains may be approximations. No prediction of flex, battery sag or overheating.', 'servos': results}
+    path.with_name('servo-flight-results.json').write_text(json.dumps(result, indent=2))
+    return result
+}

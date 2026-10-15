@@ -1,0 +1,94 @@
+{
+  "5 g \u00b7 SG51R \u00b7 vendor specs": {
+    "mass_g": 5,
+    "stall_nm": 0.0588399,
+    "continuous_nm": 0.01765197,
+    "seconds_60": 0.1,
+    "voltage": 4.8,
+    "rated_voltage": 4.8,
+    "travel_deg": 180,
+    "housing_mm": [
+      25,
+      22,
+      12
+    ],
+    "rotor_inertia": 1e-06,
+    "continuous_duty": false,
+    "mount": "Parent",
+    "kind": "Position",
+    "profile": "5 g \u00b7 SG51R \u00b7 vendor specs",
+    "source": "https://www.adafruit.com/product/2201",
+    "amazon_url": "https://www.amazon.com/s?k=SG51R+5g+servo",
+    "notes": "Vendor specification; batch and clone differences require measurement.",
+    "continuous_rating_assumed": true
+  },
+  "5 kg\u00b7cm class \u00b7 SG5010 (5.5 at 4.8 V)": {
+    "mass_g": 47,
+    "stall_nm": 0.53936575,
+    "continuous_nm": 0.161809725,
+    "seconds_60": 0.2,
+    "voltage": 4.8,
+    "rated_voltage": 4.8,
+    "travel_deg": 180,
+    "housing_mm": [
+      40.6,
+      20.5,
+      38
+    ],
+    "rotor_inertia": 1e-06,
+    "continuous_duty": false,
+    "mount": "Parent",
+    "kind": "Position",
+    "profile": "5 kg\u00b7cm class \u00b7 SG5010 (5.5 at 4.8 V)",
+    "source": "https://towerpro.com.tw/product/sg5010-4/",
+    "amazon_url": "https://www.amazon.com/s?k=TowerPro+SG5010+servo",
+    "notes": "Speed uses the manufacturer table (0.2 s/60 degrees). The headline speed unit conflicts; verify the unit you buy.",
+    "continuous_rating_assumed": true
+  },
+  "10 kg\u00b7cm \u00b7 MG995 \u00b7 6 V datasheet": {
+    "mass_g": 55,
+    "stall_nm": 0.980665,
+    "continuous_nm": 0.2941995,
+    "seconds_60": 0.16,
+    "voltage": 6,
+    "rated_voltage": 6,
+    "travel_deg": 180,
+    "housing_mm": [
+      40.7,
+      19.7,
+      42.9
+    ],
+    "rotor_inertia": 1e-06,
+    "continuous_duty": false,
+    "mount": "Parent",
+    "kind": "Position",
+    "profile": "10 kg\u00b7cm \u00b7 MG995 \u00b7 6 V datasheet",
+    "source": "https://m.media-amazon.com/images/I/81HHhrIMbeL.pdf",
+    "amazon_url": "https://www.amazon.com/dp/B07PXDKLGH",
+    "notes": "Torque comes from Amazon seller documentation. Mass/speed use the TowerPro MG995 datasheet https://www.robotiksistem.com/tower_pro_mg995_servo_motor_datasheet.pdf ; listing variants conflict.",
+    "continuous_rating_assumed": true
+  },
+  "20 kg\u00b7cm class \u00b7 DS3218 (21.5 at 6.8 V)": {
+    "mass_g": 60,
+    "stall_nm": 2.10842975,
+    "continuous_nm": 0.632528925,
+    "seconds_60": 0.14,
+    "voltage": 6.8,
+    "rated_voltage": 6.8,
+    "travel_deg": 180,
+    "housing_mm": [
+      40,
+      20,
+      40.5
+    ],
+    "rotor_inertia": 1e-06,
+    "continuous_duty": false,
+    "mount": "Parent",
+    "kind": "Position",
+    "profile": "20 kg\u00b7cm class \u00b7 DS3218 (21.5 at 6.8 V)",
+    "source": "https://images-na.ssl-images-amazon.com/images/I/81Lbgu%2BnG6L.pdf",
+    "amazon_url": "https://www.amazon.com/s?k=Miuzei+DS3218+20kg+servo",
+    "notes": "Amazon-hosted Miuzei datasheet. Use the matching 180-degree variant; other sellers and PRO models differ.",
+    "continuous_rating_assumed": true
+  }
+}

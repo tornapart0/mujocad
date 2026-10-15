@@ -1,0 +1,267 @@
+"""Create Training task: learn a smooth wing gait, take off from real supports, remain airborne."""
+from pathlib import Path
+from copy import deepcopy
+import json,math,numpy as np,mujoco,gymnasium as gym
+from gymnasium import spaces
+from flight_physics import FlightPhysics
+from servo_models import ServoPhysics
+
+class GroundFlightTask(gym.Env)
+{
+    metadata={'render_modes':[]}
+    def __init__(self,config_path)
+    {
+        self.path=Path(config_path)
+        self.config=json.loads(self.path.read_text())
+        self.model=mujoco.MjModel.from_xml_path(str(self.path.parent/self.config.get('model','robot.xml')))
+        self.original=json.loads((self.path.parent/'physics.json').read_text())
+        scenario_path=self.path.parent/'scenario.json'
+        scenario=json.loads(scenario_path.read_text()) if scenario_path.exists() else {}
+        self.compact=scenario.get('kind')=='CompactCrankOrnithopter'
+        self.confined=self.compact and bool(scenario.get('confined'))
+        self.maximum_horizontal=float(scenario.get('maximum_horizontal_drift_m',.25))
+        self.maximum_ground=float(scenario.get('maximum_ground_drift_m',.05))
+        self.minimum_up=math.cos(math.radians(float(scenario.get('maximum_tilt_deg',15))))
+        self.height_range=float(scenario.get('maximum_height_range_m',.1))
+        self.ground_incidence=float(scenario.get('ground_incidence_limit_deg',20))
+        self.incidence_limit=float(scenario.get('incidence_limit_deg',20))
+        if self.confined and (not all(math.isfinite(v) and v>0 for v in [self.maximum_horizontal,self.maximum_ground,self.height_range,self.ground_incidence,self.incidence_limit]) or self.incidence_limit>60 or self.ground_incidence>self.incidence_limit or self.maximum_ground>self.maximum_horizontal or not math.cos(math.radians(30))<=self.minimum_up<1)
+        {
+            raise ValueError('Confined flight requires finite positive drift limits and a tilt limit between 0 and 30 degrees.')
+        }
+        self.root=self.model.body(scenario.get('root','compact_frame') if self.compact else 'fuselage_balsa_keel').id
+        j=int(self.model.body_jntadr[self.root])
+        if j<0 or self.model.jnt_type[j]!=mujoco.mjtJoint.mjJNT_FREE or not np.allclose(self.model.opt.gravity,[0,0,-9.81])
+        {
+            raise ValueError('Ground takeoff needs a free body under Earth gravity.')
+        }
+        self.q=int(self.model.jnt_qposadr[j])
+        self.names=['right_wing_hinge','left_wing_hinge','right_wing_pitch','left_wing_pitch']
+        if self.compact
+        {
+            self.names=[scenario['drive'],scenario['tail']]
+            if self.confined
+            {
+                self.names=[scenario['drive'],*scenario['incidence_motors'],scenario['tail']]
+            }
+        }
+        expected=[name+'_motor' for name in self.names]
+        if set(self.config['motors'])!=set(expected) or self.model.nu!=len(expected)
+        {
+            raise ValueError('Select both flap and both feather motors; ground flight cannot use thrusters or extra actuators.')
+        }
+        self.ids=[self.model.actuator(name).id for name in expected]
+        self.base_mass=self.model.body_mass.copy()
+        self.base_inertia=self.model.body_inertia.copy()
+        self.data=mujoco.MjData(self.model)
+        self.frames=max(1,round(.04/self.model.opt.timestep))
+        self.dt=self.frames*self.model.opt.timestep
+        self.seconds=float(self.config.get('episode_seconds',30))
+        self.required=float(self.config.get('airborne_seconds',20))
+        self.clearance=float(self.config.get('takeoff_height_mm',100))*.001
+        if not math.isfinite(self.required) or self.required<20 or not math.isfinite(self.clearance) or self.clearance<.05 or not math.isfinite(self.seconds) or self.seconds<self.required+4
+        {
+            raise ValueError('Takeoff training needs at least 20 airborne seconds, 50 mm clearance, and 4 extra seconds per attempt.')
+        }
+        self.max_steps=math.ceil(self.seconds/self.dt)
+        self.actions=4 if self.confined else (2 if self.compact else 6)
+        self.action_space=spaces.Box(-1,1,(self.actions,),dtype=np.float32)
+        self.observation_space=spaces.Box(-np.inf,np.inf,(self.model.nq+self.model.nv+5+self.actions,),dtype=np.float32)
+        self.reset(seed=42)
+    }
+    def observe(self)
+    {
+        return np.r_[self.data.qpos,self.data.qvel,math.sin(self.phase),math.cos(self.phase),self.data.qpos[self.q+2]-self.base_height,self.airborne/self.required,float(self.grounded),self.last_action].astype(np.float32)
+    }
+    def reset(self,*,seed=None,options=None)
+    {
+        super().reset(seed=seed)
+        vary=self.config.get('randomize_start',True)
+        factor=float(self.np_random.uniform(1,1.05)) if vary else 1
+        self.model.body_mass[:]=self.base_mass*factor
+        self.model.body_inertia[:]=self.base_inertia*factor
+        mujoco.mj_setConst(self.model,self.data)
+        mujoco.mj_resetData(self.model,self.data)
+        self.data.qvel[:]=0
+        config=deepcopy(self.original)
+        for entry in config['servos']
+        {
+            entry['settings']['voltage']*=float(self.np_random.uniform(.95,1)) if vary else 1
+        }
+        for entry in config.get('wings',[])
+        {
+            entry['settings']['normal_coefficient']*=float(self.np_random.uniform(.9,1)) if vary else 1
+        }
+        self.flight=FlightPhysics(self.model,config)
+        self.servos=ServoPhysics(self.model,config)
+        mujoco.mj_forward(self.model,self.data)
+        pads=[g for g in range(self.model.ngeom) if '_ground_pad_contact_' in self.model.geom(g).name]
+        if len(pads)<3
+        {
+            raise ValueError('Use a model with three ground pads; an airborne initial pose is not a ground start.')
+        }
+        bottom=min(self.data.geom_xpos[g,2]-self.model.geom_size[g,0] for g in pads)
+        if not -.002<=bottom<=.002
+        {
+            raise ValueError('Place the landing pads on the floor in CAD before training. The task does not raise or drop the robot.')
+        }
+        self.base_height=float(self.data.qpos[self.q+2])
+        self.base_xy=self.data.qpos[self.q:self.q+2].copy()
+        self.maximum_horizontal_seen=0.
+        self.hover_min=math.inf
+        self.hover_max=-math.inf
+        self.phase=0.
+        self.airborne=0.
+        self.was_grounded=False
+        self.grounded=False
+        self.elapsed=0
+        self.last_action=np.zeros(self.actions)
+        self.filtered_action=np.zeros(self.actions)
+        return self.observe(),{'is_success':False,'initial_velocity':0,'ground_start':True}
+    }
+    def step(self,action)
+    {
+        action=np.asarray(action,dtype=float)
+        if action.shape!=(self.actions,) or not np.isfinite(action).all()
+        {
+            raise ValueError('Expected finite adjustments for this drive architecture.')
+        }
+        action=np.clip(action,-1,1)
+        self.filtered_action+=(1-math.exp(-self.dt/.2))*(action-self.filtered_action)
+        action=self.filtered_action.copy()
+        if self.compact
+        {
+            frequency=4.*(float(action[0])+1)
+            amplitude=0.
+        }
+        else
+        {
+            frequency=2.+float(action[0])
+            amplitude=math.radians(22.5+7.5*float(action[1]))
+            bias=math.radians(2)*float(action[2])
+            pitch=math.radians(55+25*float(action[3]))
+            phase_offset=.7+math.pi*float(action[4])
+        }
+        power=0.
+        upward=0.
+        failure=False
+        for _ in range(self.frames)
+        {
+            t=float(self.data.time)
+            u=np.clip((t-.75)/1.5,0,1)
+            gain=u*u*(3-2*u)
+            if self.compact
+            {
+                targets=[gain*2*math.pi*frequency,gain*math.radians(25)*float(action[1])]
+                if self.confined
+                {
+                    trim_limit=self.ground_incidence if self.data.qpos[self.q+2]-self.base_height<self.clearance else self.incidence_limit
+                    targets=[gain*2*math.pi*frequency,gain*math.radians(trim_limit)*float(action[1]),gain*math.radians(trim_limit)*float(action[2]),gain*math.radians(25)*float(action[3])]
+                }
+            }
+            else
+            {
+                flap=gain*amplitude*math.sin(self.phase)
+                feather=-gain*pitch*.5*(1-math.cos(self.phase+phase_offset))
+                targets=[flap+gain*bias,-flap+gain*bias,feather+gain*math.radians(3)*float(action[5]),feather-gain*math.radians(3)*float(action[5])]
+            }
+            for act,target in zip(self.ids,targets)
+            {
+                gear=self.model.actuator_gear[act,0]
+                self.data.ctrl[act]=np.clip(target*gear,*self.model.actuator_ctrlrange[act])
+            }
+            self.flight.apply(self.data,False)
+            self.servos.apply(self.data)
+            power+=self.flight.air_power_w
+            upward-=float(self.flight.air_reaction_force[2])
+            mujoco.mj_step(self.model,self.data)
+            if t>=.75
+            {
+                self.phase=(self.phase+2*math.pi*frequency*self.model.opt.timestep)%(2*math.pi)
+            }
+            self.grounded=False
+            for contact in self.data.contact
+            {
+                ground=self.model.geom_bodyid[contact.geom1]==0 or self.model.geom_bodyid[contact.geom2]==0
+                self.grounded=bool(self.grounded or ground)
+                if ground
+                {
+                    other=contact.geom2 if self.model.geom_bodyid[contact.geom1]==0 else contact.geom1
+                    if '_ground_pad_contact_' not in self.model.geom(other).name
+                    {
+                        failure=True
+                    }
+                }
+                else
+                {
+                    failure=True
+                }
+            }
+            self.was_grounded=bool(self.was_grounded or self.grounded)
+            height=float(self.data.qpos[self.q+2])-self.base_height
+            up=float(self.data.xmat[self.root].reshape(3,3)[2,2])
+            airborne=self.was_grounded and not self.grounded and height>=self.clearance and up>=.64
+            horizontal=float(np.linalg.norm(self.data.qpos[self.q:self.q+2]-self.base_xy))
+            self.maximum_horizontal_seen=max(self.maximum_horizontal_seen,horizontal)
+            if self.confined
+            {
+                vertical_speed=float(self.data.qvel[self.model.jnt_dofadr[int(self.model.body_jntadr[self.root])]+2])
+                rotation=self.data.xmat[self.root].reshape(3,3)
+                yaw=math.atan2(rotation[1,0],rotation[0,0])
+                airborne=airborne and up>=self.minimum_up and horizontal<=self.maximum_horizontal and abs(vertical_speed)<=.25 and abs(yaw)<=math.radians(20)
+                if airborne
+                {
+                    self.hover_min=min(self.hover_min,height)
+                    self.hover_max=max(self.hover_max,height)
+                    if self.hover_max-self.hover_min>self.height_range
+                    {
+                        self.airborne=0.
+                        self.hover_min=height
+                        self.hover_max=height
+                    }
+                }
+                else
+                {
+                    self.hover_min=math.inf
+                    self.hover_max=-math.inf
+                }
+                failure=failure or horizontal>self.maximum_horizontal or (self.grounded and horizontal>self.maximum_ground)
+            }
+            self.airborne=self.airborne+self.model.opt.timestep if airborne else 0.
+            failure=failure or up<.5 or not np.isfinite(self.data.qpos).all() or not np.isfinite(self.data.qvel).all() or height>3
+            if failure
+            {
+                break
+            }
+        }
+        self.elapsed+=1
+        success=self.airborne>=self.required and not failure
+        reward=2*np.clip(height/self.clearance,-1,2)+.1*self.airborne-2*(1-up)-.005*power/self.frames-.01*float(np.mean((action-self.last_action)**2))
+        if self.confined
+        {
+            reward-=10*horizontal+abs(vertical_speed)+abs(yaw)
+        }
+        if self.data.time>2.25
+        {
+            weight=float(sum(self.model.body_mass)*9.81)
+            reward+=.5*float(np.clip((upward/self.frames)/weight,-2,2))
+        }
+        if failure
+        {
+            reward-=20
+        }
+        if success
+        {
+            reward+=100
+        }
+        self.last_action=action.copy()
+        info={'is_success':bool(success),'ground_start':True,'was_grounded':self.was_grounded,'height_gain_m':height,'airborne_seconds':self.airborne,'ground_contact':self.grounded,'mechanical_interference_or_attitude_failure':bool(failure),'physical_flight_validated':False,'wing_upward_force_n':upward/self.frames,'weight_n':float(sum(self.model.body_mass)*9.81),'flap_frequency_hz':frequency,'flap_amplitude_deg':math.degrees(amplitude)}
+        info.update(confined_flight=self.confined,horizontal_drift_m=horizontal,maximum_horizontal_drift_m=self.maximum_horizontal_seen)
+        if self.compact
+        {
+            info['flap_amplitude_deg']=None
+            info['stroke_control']='Physical crank linkage; amplitude is geometry-driven, not a commanded angle.'
+        }
+        return self.observe(),float(reward),bool(success or failure),bool(self.elapsed>=self.max_steps and not (success or failure)),info
+    }
+}

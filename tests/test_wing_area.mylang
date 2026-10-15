@@ -1,0 +1,18 @@
+"""The physical sketch, not an inflated manual field, sets geometry-linked wing area."""
+from pathlib import Path
+import sys,json,tempfile,math
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from model import Part,export_model
+wing=Part(name='wing',shape='Sketch',size=[100,50,.2],sketch=[[0,0],[100,0],[0,50]],joint='Free',motor='None',collision='Convex hull',aero={'axis':'Z','area_source':'geometry','area_m2':99.,'normal_coefficient':1.4,'upstroke_ratio':1.,'flap_hz':0.,'amplitude_deg':0.,'phase_deg':0.})
+with tempfile.TemporaryDirectory() as temporary
+{
+    p=Path(temporary)
+    export_model(p/'first',[wing])
+    a=json.loads((p/'first/physics.json').read_text())['wings'][0]['settings']['area_m2']
+    assert math.isclose(a,.0025)
+    wing.size[0]*=2
+    export_model(p/'second',[wing])
+    b=json.loads((p/'second/physics.json').read_text())['wings'][0]['settings']['area_m2']
+    assert math.isclose(b,2*a)
+}
+print('PASS geometry-linked wing area: triangular area, scale update, inflated manual area ignored')

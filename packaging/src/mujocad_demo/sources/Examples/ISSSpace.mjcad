@@ -1,0 +1,2435 @@
+{
+  "format": "MuJoCoCAD",
+  "version": 2,
+  "units": "mm",
+  "parts": [
+    {
+      "name": "iss_body",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_body.stl",
+      "scenario": {
+        "kind": "ISSBlockPush",
+        "chains": {
+          "left_front": [
+            "iss_left_front_1",
+            "iss_left_front_2",
+            "iss_left_front_3",
+            "iss_left_front_4",
+            "iss_left_front_5",
+            "iss_left_front_6"
+          ],
+          "left_rear": [
+            "iss_left_rear_1",
+            "iss_left_rear_2",
+            "iss_left_rear_3",
+            "iss_left_rear_4",
+            "iss_left_rear_5",
+            "iss_left_rear_6"
+          ],
+          "right_front": [
+            "iss_right_front_1",
+            "iss_right_front_2",
+            "iss_right_front_3",
+            "iss_right_front_4",
+            "iss_right_front_5",
+            "iss_right_front_6"
+          ],
+          "right_rear": [
+            "iss_right_rear_1",
+            "iss_right_rear_2",
+            "iss_right_rear_3",
+            "iss_right_rear_4",
+            "iss_right_rear_5",
+            "iss_right_rear_6"
+          ]
+        },
+        "blocks": [
+          "block_1",
+          "block_2",
+          "block_3"
+        ],
+        "push_distance_m": 0.045,
+        "assumptions": [
+          "Fixed base on Earth-gravity workbench; not ISS microgravity.",
+          "Four six-link tentacles inferred from mesh placement. Z-axis pivots, limits, density and motor gains are simulation assumptions, not recovered Blender rig.",
+          "Only terminal links collide with blocks using convex hulls; other links are visual and articulated.",
+          "Scripted position controller, not a trained reinforcement learning policy."
+        ]
+      },
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        110.808608,
+        106.0,
+        96.181192
+      ],
+      "position": [
+        0,
+        0,
+        60.090596
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "",
+      "joint": "Free",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "Torque",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_left_front_1",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_left_front_1.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        25.150792000000003,
+        17.278579999999998,
+        18.348352
+      ],
+      "position": [
+        -43.108380000000004,
+        -21.677394000000007,
+        -42.56984
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        21.554190000000002,
+        10.838697000000003,
+        0
+      ],
+      "parent": "iss_body",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_left_front_2",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_left_front_2.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        36.284507999999995,
+        26.525287999999996,
+        17.723258
+      ],
+      "position": [
+        -24.330485999999993,
+        -21.976974,
+        -1.5091169999999998
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        12.165242999999997,
+        10.988487,
+        0
+      ],
+      "parent": "iss_left_front_1",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_left_front_3",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_left_front_3.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        37.01316,
+        28.795968000000002,
+        17.455175
+      ],
+      "position": [
+        -16.363073999999997,
+        -34.325849999999996,
+        -0.30497649999999954
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        8.181536999999999,
+        17.162924999999998,
+        0
+      ],
+      "parent": "iss_left_front_2",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_left_front_4",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_left_front_4.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        31.45972799999999,
+        28.774509000000002,
+        18.106
+      ],
+      "position": [
+        14.845203999999995,
+        -27.2384195,
+        1.1282794999999997
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -7.422601999999998,
+        13.61920975,
+        0
+      ],
+      "parent": "iss_left_front_3",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_left_front_5",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_left_front_5.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        34.406977999999995,
+        29.438552,
+        17.584992
+      ],
+      "position": [
+        36.862461,
+        2.1409614999999995,
+        2.2884220000000006
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -18.4312305,
+        -1.0704807499999998,
+        0
+      ],
+      "parent": "iss_left_front_4",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_left_front_6",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_left_front_6.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        29.99684,
+        36.551708000000005,
+        18.221662
+      ],
+      "position": [
+        23.430635,
+        28.015486000000003,
+        1.6238729999999997
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -11.7153175,
+        -14.007743000000001,
+        0
+      ],
+      "parent": "iss_left_front_5",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "Convex hull",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_left_rear_1",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_left_rear_1.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        25.150792000000003,
+        17.278583999999995,
+        18.348352
+      ],
+      "position": [
+        -43.108380000000004,
+        23.033395999999996,
+        -40.774208
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        21.554190000000002,
+        -11.516697999999998,
+        0
+      ],
+      "parent": "iss_body",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_left_rear_2",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_left_rear_2.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        36.284507999999995,
+        26.52528000000001,
+        17.723258
+      ],
+      "position": [
+        -24.330485999999993,
+        21.976972000000004,
+        1.5091169999999998
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        12.165242999999997,
+        -10.988486000000002,
+        0
+      ],
+      "parent": "iss_left_rear_1",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_left_rear_3",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_left_rear_3.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        37.01316,
+        28.795967999999988,
+        17.455175
+      ],
+      "position": [
+        -16.363073999999997,
+        34.325856000000016,
+        0.3049754999999994
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        8.181536999999999,
+        -17.162928000000008,
+        0
+      ],
+      "parent": "iss_left_rear_2",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_left_rear_4",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_left_rear_4.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        31.45972799999999,
+        28.774512000000016,
+        18.106
+      ],
+      "position": [
+        14.845203999999995,
+        27.23842399999998,
+        -1.1282784999999986
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -7.422601999999998,
+        -13.61921199999999,
+        0
+      ],
+      "parent": "iss_left_rear_3",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_left_rear_5",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_left_rear_5.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        34.406977999999995,
+        29.438559999999995,
+        17.584992
+      ],
+      "position": [
+        36.862461,
+        -2.1409679999999867,
+        -2.2884220000000006
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -18.4312305,
+        1.0704839999999933,
+        0
+      ],
+      "parent": "iss_left_rear_4",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_left_rear_6",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_left_rear_6.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        29.99684,
+        36.55169600000002,
+        18.221663
+      ],
+      "position": [
+        23.430635,
+        -28.015479999999997,
+        -1.6238735000000002
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -11.7153175,
+        14.007739999999998,
+        0
+      ],
+      "parent": "iss_left_rear_5",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "Convex hull",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_right_front_1",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_right_front_1.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        25.150799999999997,
+        17.278579999999998,
+        18.348352
+      ],
+      "position": [
+        63.134644,
+        -30.677394000000007,
+        -40.774208
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -31.567322,
+        15.338697000000003,
+        0
+      ],
+      "parent": "iss_body",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_right_front_2",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_right_front_2.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        36.284515999999996,
+        26.525285999999998,
+        17.723258
+      ],
+      "position": [
+        24.330489999999998,
+        -21.976972999999994,
+        1.5091169999999998
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -12.165244999999999,
+        10.988486499999997,
+        0
+      ],
+      "parent": "iss_right_front_1",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_right_front_3",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_right_front_3.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        37.01315199999999,
+        28.795968000000002,
+        17.455175
+      ],
+      "position": [
+        16.363066000000003,
+        -34.325851,
+        0.3049754999999994
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -8.181533000000002,
+        17.1629255,
+        0
+      ],
+      "parent": "iss_right_front_2",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_right_front_4",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_right_front_4.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        31.459724,
+        28.774508999999995,
+        18.106
+      ],
+      "position": [
+        -14.845197999999996,
+        -27.2384195,
+        -1.1282784999999986
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        7.422598999999998,
+        13.61920975,
+        0
+      ],
+      "parent": "iss_right_front_3",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_right_front_5",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_right_front_5.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        34.406982,
+        29.438553,
+        17.584992
+      ],
+      "position": [
+        -36.862461,
+        2.140962000000002,
+        -2.2884220000000006
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        18.4312305,
+        -1.070481000000001,
+        0
+      ],
+      "parent": "iss_right_front_4",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_right_front_6",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_right_front_6.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        29.996838999999998,
+        36.551711,
+        18.221663
+      ],
+      "position": [
+        -23.430636500000002,
+        28.015486,
+        -1.6238735000000002
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        11.715318250000001,
+        -14.007743,
+        0
+      ],
+      "parent": "iss_right_front_5",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "Convex hull",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_right_rear_1",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_right_rear_1.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        25.150799999999997,
+        17.278583999999995,
+        18.348352
+      ],
+      "position": [
+        62.134644,
+        23.033395999999996,
+        -42.56984
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -31.067322,
+        -11.516697999999998,
+        0
+      ],
+      "parent": "iss_body",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_right_rear_2",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_right_rear_2.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        36.284515999999996,
+        26.52528000000001,
+        17.723258
+      ],
+      "position": [
+        24.330489999999998,
+        21.976972000000004,
+        -1.5091169999999998
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -12.165244999999999,
+        -10.988486000000002,
+        0
+      ],
+      "parent": "iss_right_rear_1",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_right_rear_3",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_right_rear_3.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        37.01315199999999,
+        28.795967999999988,
+        17.455175
+      ],
+      "position": [
+        16.363066000000003,
+        34.325856000000016,
+        -0.30497649999999954
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        -8.181533000000002,
+        -17.162928000000008,
+        0
+      ],
+      "parent": "iss_right_rear_2",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_right_rear_4",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_right_rear_4.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        31.459724,
+        28.774512000000016,
+        18.106
+      ],
+      "position": [
+        -14.845197999999996,
+        27.23842399999998,
+        1.1282794999999997
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        7.422598999999998,
+        -13.61921199999999,
+        0
+      ],
+      "parent": "iss_right_rear_3",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_right_rear_5",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_right_rear_5.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        34.406982,
+        29.438559999999995,
+        17.584992
+      ],
+      "position": [
+        -36.862461,
+        -2.1409679999999867,
+        2.2884220000000006
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        18.4312305,
+        1.0704839999999933,
+        0
+      ],
+      "parent": "iss_right_rear_4",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "iss_right_rear_6",
+      "shape": "Mesh",
+      "mesh_file": "/Users/Taylan/Documents/Codex/2026-10-08/dow/outputs/ISS-robot/assets/iss_right_rear_6.stl",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        29.996838999999998,
+        36.55169600000002,
+        18.221662
+      ],
+      "position": [
+        -23.430636500000002,
+        -28.015479999999997,
+        1.6238729999999997
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        11.715318250000001,
+        14.007739999999998,
+        0
+      ],
+      "parent": "iss_right_rear_5",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -120,
+        120
+      ],
+      "unlimited": false,
+      "density": 350,
+      "mass": 0.0,
+      "torque": 0.08,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.5,
+      "kv": 0.025,
+      "control": 0.0,
+      "damping": 0.003,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "Convex hull",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1
+      ]
+    },
+    {
+      "name": "block_1",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        18,
+        18,
+        24
+      ],
+      "position": [
+        -11.644755837003931,
+        -100.89071973683102,
+        12
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "",
+      "joint": "Free",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 250,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "Torque",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.4,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.81,
+        0.64,
+        0.28,
+        1
+      ]
+    },
+    {
+      "name": "block_2",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        18,
+        18,
+        24
+      ],
+      "position": [
+        37.087906910629,
+        -108.66856175417574,
+        12
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "",
+      "joint": "Free",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 250,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "Torque",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.4,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.66,
+        0.73,
+        0.43,
+        1
+      ]
+    },
+    {
+      "name": "block_3",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {
+        "gravity": [
+          0,
+          0,
+          0
+        ],
+        "ground": false,
+        "density": 0,
+        "viscosity": 0,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002,
+        "preset": "Space \u00b7 microgravity"
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        18,
+        18,
+        24
+      ],
+      "position": [
+        -11.592534412337272,
+        102.25270362444343,
+        12
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "",
+      "joint": "Free",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 250,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "Torque",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.4,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.72,
+        0.5,
+        0.34,
+        1
+      ]
+    }
+  ]
+}

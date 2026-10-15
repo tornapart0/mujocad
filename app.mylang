@@ -9,7 +9,7 @@ from viewport import Viewport
 from materials import CAD_SURFACE
 from theme import STYLE, SolarMark
 from measurements import MeasurementPanel
-from editor_actions import copy_parts, paste_parts, cut_hole
+from editor_actions import copy_parts, paste_parts, cut_hole, mirror_parts
 from scipy.spatial.transform import Rotation
 from model import Part, world_position, validate, save_project, load_project, geometry_key, world_matrix, set_world_matrix, world_matrices
 from jobs import Job
@@ -17,17 +17,28 @@ from cad_worker import CADWorker
 from training_ui import TrainingWizard, TrainingPanel, TrainingLibrary, job_folder
 from dialogs import ConstraintEditor, BooleanOperands
 from copy import deepcopy
+from cad_activity import CADActivity
+from physics_features import environment
+from physics_ui import edit_environment, edit_rig, edit_tendon, edit_flight
+from servo_ui import edit_servo, edit_material, run_servo_test, compare_servos
+from servo_models import housing_mass_on
+from hardware_ui import add_hardware, edit_spring, edit_propeller
+from sketch_regions import sketch_cells, region_part
+from shapely.geometry import Point
 ROOT = Path(__file__).resolve().parent
 
 class SketchCanvas(W.QWidget)
 {
     changed = C.Signal(object)
+    region_clicked = C.Signal(int)
 
     def __init__(self)
     {
         super().__init__()
         self.setMinimumSize(640, 430)
         self.points = []
+        self.regions = []
+        self.selected_regions = set()
         self.start = None
         self.mode = 'Rectangle'
         self.snap = 5.0
@@ -44,6 +55,19 @@ class SketchCanvas(W.QWidget)
     }
     def mousePressEvent(self, e)
     {
+        if self.mode == 'Select regions'
+        {
+            point = Point((e.position().x() - self.width()/2)/self.scale, (self.height()/2 - e.position().y())/self.scale)
+            for i, region in enumerate(self.regions)
+            {
+                if region.contains(point)
+                {
+                    self.region_clicked.emit(i)
+                    return
+                }
+            }
+            return
+        }
         p = self.point(e)
         if self.mode == 'Circle'
         {
@@ -125,6 +149,24 @@ class SketchCanvas(W.QWidget)
         painter.setPen(G.QPen(G.QColor('#9caa83'), 1))
         painter.drawLine(int(cx), 0, int(cx), self.height())
         painter.drawLine(0, int(cy), self.width(), int(cy))
+        for i, region in enumerate(self.regions)
+        {
+            path = G.QPainterPath()
+            path.setFillRule(C.Qt.OddEvenFill)
+            for ring in [region.exterior, *region.interiors]
+            {
+                vertices = list(ring.coords)
+                path.moveTo(cx + vertices[0][0]*self.scale, cy - vertices[0][1]*self.scale)
+                for x, y in vertices[1:]
+                {
+                    path.lineTo(cx + x*self.scale, cy - y*self.scale)
+                }
+                path.closeSubpath()
+            }
+            painter.setPen(G.QPen(G.QColor('#386247'), 2))
+            painter.setBrush(G.QColor('#8caf70') if i in self.selected_regions else G.QColor('#ece2c7'))
+            painter.drawPath(path)
+        }
         if self.points
         {
             poly = G.QPolygonF([C.QPointF(cx + x * self.scale, cy - y * self.scale) for x, y in self.points])
@@ -152,10 +194,12 @@ class SketchDialog(W.QDialog)
         self.setWindowTitle('Sketch → solid')
         self.resize(780, 600)
         layout = W.QVBoxLayout(self)
-        layout.addWidget(W.QLabel('Drag a rectangle, click polygon corners, or draw a freehand outline. The profile closes automatically.'))
+        instructions = W.QLabel('Draw an outline, click Add outline, then draw another inside it. Add that outline and select the enclosed areas to extrude. Green areas become solid; tan areas stay empty.')
+        instructions.setWordWrap(True)
+        layout.addWidget(instructions)
         row = W.QHBoxLayout()
         self.mode = W.QComboBox()
-        self.mode.addItems(['Rectangle', 'Circle', 'Polygon', 'Freehand'])
+        self.mode.addItems(['Rectangle', 'Circle', 'Polygon', 'Freehand', 'Select regions'])
         row.addWidget(self.mode)
         row.addWidget(W.QLabel('Grid spacing'))
         self.grid = W.QDoubleSpinBox()
@@ -164,15 +208,25 @@ class SketchDialog(W.QDialog)
         row.addWidget(self.grid)
         clear = W.QPushButton('Clear sketch')
         row.addWidget(clear)
+        add_outline = W.QPushButton('Add outline')
+        row.addWidget(add_outline)
         row.addStretch()
         layout.addLayout(row)
         self.canvas = SketchCanvas()
         layout.addWidget(self.canvas, 1)
         self.constraints = []
+        self.outlines = []
+        self.region_list = W.QListWidget()
+        self.region_list.setMaximumHeight(110)
+        layout.addWidget(W.QLabel('Enclosed regions · checked green areas will be extruded'))
+        layout.addWidget(self.region_list)
+        self.region_list.itemChanged.connect(self.selection_changed)
+        self.canvas.region_clicked.connect(self.toggle_region)
+        add_outline.clicked.connect(self.add_outline)
         constraint_button = W.QPushButton('Add dimensions and geometric constraints')
         constraint_button.clicked.connect(self.edit_constraints)
         layout.addWidget(constraint_button)
-        self.mode.currentTextChanged.connect(lambda mode: constraint_button.setEnabled(mode != 'Circle'))
+        self.mode.currentTextChanged.connect(lambda mode: constraint_button.setEnabled(mode not in ['Circle', 'Select regions']))
         form = W.QFormLayout()
         self.width = W.QDoubleSpinBox()
         self.depth = W.QDoubleSpinBox()
@@ -195,8 +249,77 @@ class SketchDialog(W.QDialog)
         buttons.rejected.connect(self.reject)
         self.mode.currentTextChanged.connect(lambda s: setattr(self.canvas, 'mode', s))
         self.grid.valueChanged.connect(lambda v: setattr(self.canvas, 'snap', v))
-        clear.clicked.connect(lambda: (self.canvas.points.clear(), self.canvas.update()))
+        clear.clicked.connect(self.clear_sketch)
 
+    }
+    def clear_sketch(self)
+    {
+        self.outlines.clear()
+        self.canvas.points.clear()
+        self.canvas.regions.clear()
+        self.canvas.selected_regions.clear()
+        self.region_list.clear()
+        self.constraints = []
+        self.canvas.update()
+    }
+    def add_outline(self)
+    {
+        if len(self.canvas.points) < 3
+        {
+            W.QMessageBox.information(self, 'Draw an outline', 'Draw at least three corners or drag a rectangle or circle first.')
+            return False
+        }
+        outlines = [*self.outlines, deepcopy(self.canvas.points)]
+        try
+        {
+            cells = sketch_cells(outlines)
+        }
+        except ValueError as error
+        {
+            W.QMessageBox.information(self, 'Check outline', str(error))
+            return False
+        }
+        self.outlines = outlines
+        self.canvas.points = []
+        self.constraints = []
+        self.width.setEnabled(True)
+        self.depth.setEnabled(True)
+        self.canvas.regions = cells
+        self.region_list.blockSignals(True)
+        self.region_list.clear()
+        for i, cell in enumerate(cells)
+        {
+            item = W.QListWidgetItem(f'Region {i+1} · {cell.area:.1f} mm²')
+            item.setFlags(item.flags() | C.Qt.ItemIsUserCheckable)
+            item.setCheckState(C.Qt.Checked if len(outlines) == 1 else C.Qt.Unchecked)
+            self.region_list.addItem(item)
+        }
+        self.region_list.blockSignals(False)
+        self.selection_changed()
+        if len(outlines) > 1
+        {
+            self.mode.setCurrentText('Select regions')
+        }
+        self.canvas.update()
+        return True
+    }
+    def toggle_region(self, index)
+    {
+        item = self.region_list.item(index)
+        item.setCheckState(C.Qt.Unchecked if item.checkState() == C.Qt.Checked else C.Qt.Checked)
+    }
+    def selection_changed(self, *args)
+    {
+        self.canvas.selected_regions = {i for i in range(self.region_list.count()) if self.region_list.item(i).checkState() == C.Qt.Checked}
+        cells = [self.canvas.regions[i] for i in sorted(self.canvas.selected_regions)]
+        if cells
+        {
+            from shapely.ops import unary_union
+            bounds = unary_union(cells).bounds
+            self.width.setValue(bounds[2] - bounds[0])
+            self.depth.setValue(bounds[3] - bounds[1])
+        }
+        self.canvas.update()
     }
     def profile_changed(self, points)
     {
@@ -236,7 +359,19 @@ class SketchDialog(W.QDialog)
     }
     def accept(self)
     {
-        if len(self.canvas.points) < 3
+        if self.outlines
+        {
+            if self.canvas.points and not self.add_outline()
+            {
+                return
+            }
+            if not self.canvas.selected_regions
+            {
+                W.QMessageBox.information(self, 'Select regions', 'Click the enclosed areas or check their boxes to choose what to extrude.')
+                return
+            }
+        }
+        elif len(self.canvas.points) < 3
         {
             W.QMessageBox.information(self, 'Draw a profile', 'Draw a closed profile first.')
             return
@@ -251,7 +386,7 @@ class Window(W.QMainWindow)
     def __init__(self)
     {
         super().__init__()
-        self.setWindowTitle('MuJoCoCAD • Robot editor 0.5 · Sensible Lang')
+        self.setWindowTitle('MuJoCoCAD • Robot editor 0.6.0 · Sensible Lang')
         self.resize(1320, 850)
         self.training_panels = []
         self.cad_worker = CADWorker()
@@ -292,7 +427,7 @@ class Window(W.QMainWindow)
         self.selection_label = W.QLabel('Sketch · Assemble · Simulate')
         layout.addWidget(self.selection_label)
         toolbar = W.QHBoxLayout()
-        for text, fn in [('Sketch', self.add_sketch), ('Add solid', self.add_part), ('Hole', lambda: cut_hole(self)), ('Join selected', self.join_selected), ('Boolean', self.boolean_selected), ('Undo', self.undo), ('Redo', self.redo), ('Delete object', self.remove), ('Copy', lambda: copy_parts(self)), ('Paste', lambda: paste_parts(self))]
+        for text, fn in [('Sketch', self.add_sketch), ('Add solid', self.add_part), ('Hole', lambda: cut_hole(self)), ('Join selected', self.join_selected), ('Boolean', self.boolean_selected), ('Undo', self.undo), ('Redo', self.redo), ('Delete object', self.remove), ('Copy', lambda: copy_parts(self)), ('Paste', lambda: paste_parts(self)), ('Mirror', lambda: mirror_parts(self)), ('Rig', lambda: edit_rig(self))]
         {
             b = W.QPushButton(text)
             b.clicked.connect(fn)
@@ -327,6 +462,7 @@ class Window(W.QMainWindow)
         }
         training_menu = self.menuBar().addMenu('Training')
         training_menu.addAction('Create training…', self.create_training)
+        training_menu.addAction('Check ornithopter lift capacity…', self.check_lift_capacity)
         training_menu.addAction('Open saved training…', self.open_training)
         training_menu.addAction('Show current training', self.show_training)
         view_menu = self.menuBar().addMenu('View')
@@ -344,14 +480,28 @@ class Window(W.QMainWindow)
             action.triggered.connect(fn)
         }
         examples = file_menu.addMenu('Example robots')
-        for title, filename in [('Motorized arm', 'MotorizedArm'), ('Floating robot', 'FloatingRobot')]
+        for title, filename in [('Motorized arm', 'MotorizedArm'), ('Floating robot', 'FloatingRobot'), ('Your ISS robot · block pushing', 'ISSRobot'), ('Ornithopter · wing-powered flight', 'OrnithopterFlight'), ('Leonardo-inspired sail ornithopter', 'DaVinciOrnithopter'), ('ISS robot · space / free drift', 'ISSSpace'), ('Tendon-driven slider', 'TendonSlider'), ('Screws and routed spring', 'MechanicalRig'), ('Propeller motor bench', 'PropellerBench')]
         {
             action = examples.addAction(title)
             action.triggered.connect(lambda checked=False, n=filename: self.open_example(n))
         }
+        rigging_menu = self.menuBar().addMenu('Rigging')
+        rigging_menu.addAction('Add mechanical component…', lambda: add_hardware(self))
+        rigging_menu.addAction('Propeller calibration…', lambda: edit_propeller(self))
+        rigging_menu.addAction('Spring between bodies…', lambda: edit_tendon(self,True))
+        rigging_menu.addAction('Spring on selected joint…', lambda: edit_spring(self))
+        rigging_menu.addAction('Joints and motors…', lambda: edit_rig(self))
+        rigging_menu.addAction('Tendons and cable control…', lambda: edit_tendon(self))
+        rigging_menu.addAction('Wing forces and thrusters…', lambda: edit_flight(self))
+        rigging_menu.addAction('Simulation environment…', lambda: edit_environment(self))
+        rigging_menu.addAction('Servo models and weight…', lambda: edit_servo(self))
+        rigging_menu.addAction('Servo and flight test…', lambda: run_servo_test(self))
+        rigging_menu.addAction('Compare 5 g / 5 / 10 / 20 kg·cm servos…', lambda: compare_servos(self))
+        rigging_menu.addAction('Build materials…', lambda: edit_material(self))
         edit_menu = self.menuBar().addMenu('Edit')
         edit_menu.addAction('Copy parts', lambda: copy_parts(self))
         edit_menu.addAction('Paste parts', lambda: paste_parts(self))
+        edit_menu.addAction('Mirror parts', lambda: mirror_parts(self))
         for text, fn in [('Duplicate part', self.duplicate), ('Remove part', self.remove)]
         {
             action = edit_menu.addAction(text)
@@ -375,6 +525,12 @@ class Window(W.QMainWindow)
         self.grid_spacing.addItems(['10 mm', '25 mm', '50 mm', '100 mm'])
         self.grid_spacing.setCurrentIndex(1)
         navigation.addWidget(self.grid_spacing)
+        self.grid_lock = W.QCheckBox('Snap to grid')
+        self.grid_lock.setToolTip('Lock dragged part origins to the world grid along the movement axis')
+        navigation.addWidget(self.grid_lock)
+        environment_button = W.QPushButton('Environment')
+        environment_button.clicked.connect(lambda: edit_environment(self))
+        navigation.addWidget(environment_button)
         layout.addLayout(navigation)
         splitter = W.QSplitter()
         layout.addWidget(splitter, 1)
@@ -451,9 +607,13 @@ class Window(W.QMainWindow)
         self.name = W.QLineEdit()
         form.addRow('Name', self.name)
         self.shape = W.QComboBox()
-        self.shape.addItems(['Box', 'Cylinder', 'Sphere', 'Sketch', 'Boolean'])
+        self.shape.addItems(['Box', 'Cylinder', 'Sphere', 'Ellipsoid', 'Screw M3', 'Screw M4', 'Spring', 'Attachment loop', 'Knot', 'Propeller', 'Sketch', 'Boolean', 'Mesh'])
         form.addRow('Feature', self.shape)
-        self.size = self.vector(form, 'Dimensions · mm', [1, 2000])
+        self.size = self.vector(form, 'Dimensions · mm', [0.001, 2000])
+        for dimension in self.size
+        {
+            dimension.setDecimals(3)
+        }
         self.fillet = self.spin(0, 100, 0)
         form.addRow('Edge radius · mm', self.fillet)
         self.rotation = self.vector(form, 'Rotation · degrees', [-360, 360])
@@ -462,7 +622,7 @@ class Window(W.QMainWindow)
         form.addRow(self.edit_geometry)
         self.pos = self.vector(form, 'Position relative to parent · mm', [-5000, 5000])
         self.mass = W.QLabel()
-        form.addRow('Calculated mass', self.mass)
+        form.addRow('Mass including mounted servos', self.mass)
         color = W.QPushButton('Change color')
         color.clicked.connect(self.color)
         form.addRow(color)
@@ -473,7 +633,7 @@ class Window(W.QMainWindow)
         self.parent = W.QComboBox()
         form.addRow('Parent part', self.parent)
         self.joint = W.QComboBox()
-        self.joint.addItems(['Fixed', 'Hinge', 'Slide', 'Ball', 'Free'])
+        self.joint.addItems(['Fixed', 'Rigid screw M3', 'Rigid screw M4', 'Hinge', 'Slide', 'Ball', 'Free'])
         form.addRow('Connection', self.joint)
         self.axis = W.QComboBox()
         self.axis.addItems(['X', 'Y', 'Z'])
@@ -497,8 +657,15 @@ class Window(W.QMainWindow)
         self.control = self.spin(-100000, 100000, 0)
         form.addRow('Initial target · Nm, N, degrees, mm, or /s', self.control)
         self.damping = self.spin(0, 10000, 0.2)
+        self.damping.setDecimals(9)
         self.frictionloss = self.spin(0, 10000, 0)
         self.armature = self.spin(0, 10000, 0.001)
+        self.armature.setDecimals(9)
+        self.stiffness=self.spin(0,10000,0)
+        self.stiffness.setDecimals(8)
+        self.springref=self.spin(-10000,10000,0)
+        form.addRow('Spring stiffness · Nm/rad or N/m',self.stiffness)
+        form.addRow('Spring rest angle / travel · degrees / mm',self.springref)
         form.addRow('Joint damping', self.damping)
         form.addRow('Joint friction loss', self.frictionloss)
         form.addRow('Rotor armature', self.armature)
@@ -508,7 +675,7 @@ class Window(W.QMainWindow)
         clearclosure = W.QPushButton('Remove this part’s loop closure')
         clearclosure.clicked.connect(self.clear_closure)
         form.addRow(clearclosure)
-        joint_note = W.QLabel('A fixed join keeps separate editable CAD parts in one rigid assembly. A hinge or slider adds a motor.')
+        joint_note = W.QLabel('Rigid screw M3/M4 adds a steel socket screw at the pivot and locks the connection. Set its axis and pivot to the mounting location. Threads and clamping strength are not simulated.')
         joint_note.setWordWrap(True)
         form.addRow(joint_note)
         form = make_tab('Physics')
@@ -522,15 +689,32 @@ class Window(W.QMainWindow)
         anchor = W.QPushButton('Anchor assembly to world')
         anchor.clicked.connect(lambda: self.set_assembly_floating(False))
         form.addRow(anchor)
-        physics_environment = W.QLabel('Simulation: gravity 9.81 m/s² downward · solid ground at Z = 0 mm. The CAD canvas is an editing preview.')
-        physics_environment.setWordWrap(True)
-        form.addRow(physics_environment)
+        self.physics_environment = W.QLabel()
+        self.physics_environment.setWordWrap(True)
+        form.addRow(self.physics_environment)
+        servo_settings = W.QPushButton('Servo model · weight, speed and torque…')
+        servo_settings.clicked.connect(lambda: edit_servo(self))
+        form.addRow(servo_settings)
+        material_settings = W.QPushButton('Choose build material…')
+        material_settings.clicked.connect(lambda: edit_material(self))
+        form.addRow(material_settings)
+        servo_test_button = W.QPushButton('Test servos and wing-only flight…')
+        servo_test_button.clicked.connect(lambda: run_servo_test(self))
+        form.addRow(servo_test_button)
+        scene_settings = W.QPushButton('Choose environment · Earth / Moon / Mars / Space')
+        scene_settings.clicked.connect(lambda: edit_environment(self))
+        form.addRow(scene_settings)
+        flight_settings = W.QPushButton('Wing forces and upward thrust…')
+        flight_settings.clicked.connect(lambda: edit_flight(self))
+        form.addRow(flight_settings)
         self.density = self.spin(1, 25000, 1000)
         form.addRow('Density · kg/m³', self.density)
         self.torque = self.spin(0.001, 10000, 2)
         form.addRow('Motor force · Nm / N', self.torque)
         self.override_mass = self.spin(0, 100000, 0)
-        form.addRow('Mass override · kg (0 = density)', self.override_mass)
+        self.override_mass.setDecimals(6)
+        self.override_mass.setToolTip('Mass of this CAD part only. Servo housing masses are added separately; wiring and battery must be included in the geometry or part mass.')
+        form.addRow('Part mass override · kg (0 = density)', self.override_mass)
         self.collision = W.QComboBox()
         self.collision.addItems(['Auto', 'Primitive', 'Convex hull', 'Decomposition', 'None'])
         form.addRow('Collision geometry', self.collision)
@@ -597,7 +781,7 @@ class Window(W.QMainWindow)
         {
             w.setEnabled(scalar)
         }
-        for w in self.pivot + [self.damping, self.frictionloss, self.armature]
+        for w in self.pivot + [self.damping, self.frictionloss, self.armature,self.stiffness,self.springref]
         {
             w.setEnabled(moving)
         }
@@ -734,7 +918,7 @@ class Window(W.QMainWindow)
         self.maximum.setValue(p.limits[1])
         self.density.setValue(p.density)
         self.torque.setValue(p.torque)
-        for name in ['gear', 'kp', 'kv', 'control', 'damping', 'frictionloss', 'armature', 'collision_tolerance']
+        for name in ['gear', 'kp', 'kv', 'control', 'damping', 'frictionloss', 'armature', 'collision_tolerance', 'stiffness', 'springref']
         {
             getattr(self, name).setValue(getattr(p, name))
         }
@@ -745,7 +929,9 @@ class Window(W.QMainWindow)
         self.collision.setCurrentText(p.collision)
         self.inspector_state()
         root = self.assembly_root(p)
-        self.physics_state.setText(('Floating assembly: gravity can move it.' if root.joint == 'Free' else 'Anchored assembly: the base stays fixed.' if root.joint == 'Fixed' else 'Constrained assembly: motion follows its root joint.') + ' Root: ' + root.name + ('. Collision is disabled for this part.' if p.collision == 'None' else ''))
+        scene = environment(self.parts)
+        self.physics_environment.setText(f"Environment: {scene.get('preset', 'Custom')} · gravity {scene['gravity']} m/s² · ground {'on' if scene['ground'] else 'off'}")
+        self.physics_state.setText(('Floating assembly: forces can move it.' if root.joint == 'Free' else 'Anchored assembly: the base stays fixed.' if root.joint in ['Fixed','Rigid screw M3','Rigid screw M4'] else 'Constrained assembly: motion follows its root joint.') + ' Root: ' + root.name + ('. Collision is disabled for this part.' if p.collision == 'None' else ''))
         self.edit_geometry.setEnabled(p.shape in ['Sketch', 'Boolean'])
         for w in self.size[:2]
         {
@@ -1156,10 +1342,19 @@ class Window(W.QMainWindow)
             self.view.addItem(item)
             self.items.append(item)
         }
+        from physics_features import tendons
+        for cable in tendons(self.parts)
+        {
+            points=np.asarray([(transforms[point['body']]@np.r_[point['position'],1])[:3] for point in cable['points']])
+            line=gl.GLLinePlotItem(pos=points,color=(.9,.7,.3,1),width=3,antialias=True)
+            self.view.addItem(line);self.items.append(line)
+            anchors=gl.GLScatterPlotItem(pos=points,color=(1,.85,.5,1),size=7)
+            self.view.addItem(anchors);self.items.append(anchors)
+        }
         if self.parts
         {
             p = self.parts[self.selected]
-            self.mass.setText(f'{p.mass or self.mesh_cache[geometry_key(p)][2] * 1e-09 * p.density:.4f} kg')
+            self.mass.setText(f"{((p.mass or self.mesh_cache[geometry_key(p)][2] * 1e-09 * p.density) + housing_mass_on(p.name, self.parts)) * 1000:.2f} g")
         }
         self.render_gizmo()
         self.highlight()
@@ -1217,7 +1412,7 @@ class Window(W.QMainWindow)
         orientation.addItems([f'{parent.name} → {child.name}', f'{child.name} → {parent.name}'])
         form.addRow('Parent → child', orientation)
         kind = W.QComboBox()
-        kind.addItems(['Fixed', 'Hinge', 'Slide', 'Ball'])
+        kind.addItems(['Fixed', 'Rigid screw M3', 'Rigid screw M4', 'Hinge', 'Slide', 'Ball'])
         form.addRow('Connection', kind)
         axis = W.QComboBox()
         axis.addItems(['X', 'Y', 'Z'])
@@ -1252,7 +1447,9 @@ class Window(W.QMainWindow)
         child_world = world_matrix(child, self.parts)
         child.parent = parent.name
         child.joint = kind
+        from hardware import ensure_screw
         child.axis = axis
+        ensure_screw(child,self.parts)
         try
         {
             set_world_matrix(child, child_world, self.parts)
@@ -1313,7 +1510,7 @@ class Window(W.QMainWindow)
             p.fillet = self.fillet.value()
             p.rotation = [w.value() for w in self.rotation]
             p.friction = [w.value() for w in self.friction]
-            for name in ['gear', 'kp', 'kv', 'control', 'damping', 'frictionloss', 'armature', 'collision_tolerance']
+            for name in ['gear', 'kp', 'kv', 'control', 'damping', 'frictionloss', 'armature', 'collision_tolerance', 'stiffness', 'springref']
             {
                 setattr(p, name, getattr(self, name).value())
             }
@@ -1324,6 +1521,16 @@ class Window(W.QMainWindow)
             p.collision = self.collision.currentText()
             for q in self.parts
             {
+                for cable in q.tendons
+                {
+                    for point in cable['points']
+                    {
+                        if point['body'] == previous
+                        {
+                            point['body'] = p.name
+                        }
+                    }
+                }
                 if q.parent == previous
                 {
                     q.parent = p.name
@@ -1333,6 +1540,8 @@ class Window(W.QMainWindow)
                     q.closure['body'] = p.name
                 }
             }
+            from hardware import ensure_screw
+            ensure_screw(p,self.parts)
             validate(self.parts)
             candidate = deepcopy(self.parts)
             index = self.selected
@@ -1401,7 +1610,15 @@ class Window(W.QMainWindow)
         }
         def accept()
         {
+            if d.outlines
+            {
+                cells = [d.canvas.regions[i] for i in sorted(d.canvas.selected_regions)]
+                p = region_part(self.unique('sketch'), cells, d.width.value(), d.depth.value(), d.height.value(), [100 + len(self.parts)*30, 0, d.height.value()/2])
+            }
+            else
+            {
             p = Part(self.unique('sketch'), shape='Cylinder' if d.mode.currentText() == 'Circle' else 'Sketch', sketch=list(d.canvas.points), constraints=deepcopy(d.constraints), size=[d.width.value(), d.depth.value(), d.height.value()], position=[100 + len(self.parts) * 30, 0, d.height.value() / 2])
+            }
 
             def done(mesh)
             {
@@ -1427,6 +1644,8 @@ class Window(W.QMainWindow)
         from copy import deepcopy
         p = deepcopy(self.parts[self.selected])
         p.name = self.unique(p.name)
+        p.tendons = []
+        p.scenario = {}
         p.position[0] += 60
         self.remember()
         self.parts.append(p)
@@ -1466,6 +1685,10 @@ class Window(W.QMainWindow)
         }
         self.remember()
         self.parts = [p for p in self.parts if p.name not in names]
+        for part in self.parts
+        {
+            part.tendons = [cable for cable in part.tendons if not any(point['body'] in names for point in cable['points'])]
+        }
         self.refresh()
         self.statusBar().showMessage(f'Deleted {len(names)} object(s) • Undo restores them')
 
@@ -1592,7 +1815,7 @@ class Window(W.QMainWindow)
         {
             a, b = (b, a)
         }
-        if b.joint != 'Fixed' or b.closure or any((p.parent == b.name or p.closure.get('body') == b.name for p in self.parts))
+        if b.joint not in ['Fixed','Rigid screw M3','Rigid screw M4'] or b.closure or any((p.parent == b.name or p.closure.get('body') == b.name for p in self.parts))
         {
             self.error('The tool must be a fixed part with no children or loop connections.')
             return
@@ -1723,9 +1946,47 @@ class Window(W.QMainWindow)
 
         }
     }
+    def check_lift_capacity(self)
+    {
+        scenario=next((p.scenario for p in self.parts if p.scenario.get('confined')),None)
+        if not scenario
+        {
+            self.error('Open a compact ornithopter with independent wing incidence controls before checking lift capacity.')
+            return
+        }
+        try
+        {
+            validate(self.parts)
+            from lift_ui import LiftScreenPanel
+            from datetime import datetime
+            import uuid
+            folder=ROOT/'LiftChecks'/(datetime.now().strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:6])
+            folder.mkdir(parents=True)
+            snapshot=deepcopy(self.parts)
+            panel=LiftScreenPanel(folder,self)
+            if not hasattr(self,'lift_panels')
+            {
+                self.lift_panels=[]
+            }
+            self.lift_panels.append(panel)
+            panel.show()
+            config={'version':1,'goal':'ground_flight','model':'robot.xml','motors':[name+'_motor' for name in [scenario['drive'],*scenario['incidence_motors'],scenario['tail']]],'episode_seconds':30,'airborne_seconds':20,'takeoff_height_mm':100,'randomize_start':True}
+            def ready(result)
+            {
+                (folder/'bench-task.json').write_text(json.dumps(config,indent=2))
+                panel.start()
+            }
+            self.run_job(lambda:self.cad_worker.request('export',folder,snapshot),ready,'Preparing lift capacity measurement…',on_error=panel.fail)
+        }
+        except Exception as error
+        {
+            self.error(error)
+        }
+    }
+
     def create_training(self)
     {
-        if not any((p.joint in ['Hinge', 'Slide', 'Ball'] and p.motor != 'None' for p in self.parts))
+        if not any((p.joint in ['Hinge', 'Slide', 'Ball'] and p.motor != 'None' or p.thruster or any(t['mode'] != 'Passive spring' for t in p.tendons) for p in self.parts))
         {
             dialog = W.QMessageBox(self)
             dialog.setWindowTitle('Add a motor first')
@@ -1768,6 +2029,7 @@ class Window(W.QMainWindow)
         {
             (folder / 'task.json').write_text(json.dumps(config, indent=2))
             shutil.copyfile(ROOT / 'robot_training.py', folder / 'robot_training.py')
+            shutil.copyfile(ROOT / 'ground_flight_training.py', folder / 'ground_flight_training.py')
             shutil.copyfile(ROOT / 'requirements-training.txt', folder / 'requirements.txt')
             (folder / 'TRAINING.txt').write_text('This folder is an immutable robot and goal snapshot. Train with the CAD Training panel. policy.zip stores the learned policy; results.json stores evaluation results. Changing the live CAD design does not change this run.\n')
             panel.start()
@@ -1868,7 +2130,7 @@ class Window(W.QMainWindow)
         self.remember()
         root.joint = target
         self.refresh()
-        self.statusBar().showMessage(root.name + (' released • click Simulate to run gravity and ground contact' if floating else ' anchored to world'))
+        self.statusBar().showMessage(root.name + (' released • click Simulate to run scene physics' if floating else ' anchored to world'))
 
     }
     def simulate(self)
@@ -1877,13 +2139,13 @@ class Window(W.QMainWindow)
         {
             return
         }
-        if all((p.joint == 'Fixed' for p in self.parts))
+        if all((p.joint in ['Fixed','Rigid screw M3','Rigid screw M4'] for p in self.parts))
         {
             dialog = W.QMessageBox(self)
             dialog.setWindowTitle('These parts are anchored')
-            dialog.setText('Every part is Fixed, so nothing can fall or move. Gravity and ground contact are enabled in simulation.')
-            dialog.setInformativeText('Let parts fall releases each assembly root. Joined parts stay connected. The CAD canvas remains an editing preview.')
-            release = dialog.addButton('Let parts fall & simulate', W.QMessageBox.AcceptRole)
+            dialog.setText('Every part is Fixed, so the assembly is anchored. Release a root to let the chosen environment move it.')
+            dialog.setInformativeText('Releasing roots keeps the rig connected and allows falling or space drift. The CAD canvas is an editing preview.')
+            release = dialog.addButton('Release roots & simulate', W.QMessageBox.AcceptRole)
             anchored = dialog.addButton('Simulate anchored', W.QMessageBox.ActionRole)
             dialog.addButton(W.QMessageBox.Cancel)
             dialog.exec()
@@ -1911,7 +2173,7 @@ class Window(W.QMainWindow)
             target, m = result
             env = os.environ.copy()
             env['PATH'] = '/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin:' + env.get('PATH', '')
-            subprocess.Popen([str(ROOT / '.venv/bin/mjpython'), str(ROOT / 'simulate.py'), str(target)], env=env)
+            subprocess.Popen([str(__import__('runtime_paths').simulator_runtime()), str(ROOT / 'simulate.py'), str(target)], env=env)
             self.statusBar().showMessage('MuJoCo viewer launched • motor controls in right panel')
         }
         self.run_job(lambda: self.cad_worker.request('export', ROOT / 'simulation', snapshot), done, 'Preparing robot simulation…')
@@ -1925,6 +2187,18 @@ if __name__ == '__main__'
     app.setStyle('Fusion')
     app.setStyleSheet(STYLE)
     window = Window()
+    if len(sys.argv) > 1 and sys.argv[1].endswith('.mjcad')
+    {
+        window.parts = load_project(sys.argv[1])
+        window.path = Path(sys.argv[1])
+        window.selected = 0
+        window.history.clear()
+        window.redo_history.clear()
+        window.dirty = False
+        window.needs_frame = True
+        window.refresh()
+    }
+    window.cad_activity = CADActivity(window)
     window.show()
     sys.exit(app.exec())
 }

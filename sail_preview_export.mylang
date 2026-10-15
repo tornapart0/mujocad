@@ -1,0 +1,296 @@
+"""Lightweight exact primitive/prismatic export for the Leonardo example only.
+Avoids loading the CAD kernel; the .mjcad remains editable with the normal exporter.
+"""
+import json,math,shutil
+from pathlib import Path
+import xml.etree.ElementTree as E
+
+def fmt(v)
+{
+    return ' '.join(str(float(x)) for x in v)
+
+}
+def quat(degrees)
+{
+    x,y,z=[math.radians(t)/2 for t in degrees]
+    cx,cy,cz=math.cos(x),math.cos(y),math.cos(z)
+    sx,sy,sz=math.sin(x),math.sin(y),math.sin(z)
+    return [cx*cy*cz+sx*sy*sz,sx*cy*cz-cx*sy*sz,cx*sy*cz+sx*cy*sz,cx*cy*sz-sx*sy*cz]
+
+}
+def profile(p)
+{
+    pts=p['sketch']
+    lo=[min(t[i] for t in pts) for i in range(2)]
+    hi=[max(t[i] for t in pts) for i in range(2)]
+    out=[[(t[i]-(lo[i]+hi[i])/2)*p['size'][i]/(hi[i]-lo[i])*.001 for i in range(2)] for t in pts]
+    if sum(a[0]*b[1]-b[0]*a[1] for a,b in zip(out,out[1:]+out[:1]))<0
+    {
+        out.reverse()
+    }
+    return out
+
+}
+def cross(a,b,c)
+{
+    return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0])
+
+}
+def triangulate(pts)
+{
+    remaining=list(range(len(pts)))
+    triangles=[]
+    while len(remaining)>3
+    {
+        found=False
+        for i,b in enumerate(remaining)
+        {
+            a,c=remaining[i-1],remaining[(i+1)%len(remaining)]
+            if cross(pts[a],pts[b],pts[c])<=1e-15
+            {
+                continue
+            }
+            blocked=False
+            for k in remaining
+            {
+                if k in (a,b,c)
+                {
+                    continue
+                }
+                if min(cross(pts[a],pts[b],pts[k]),cross(pts[b],pts[c],pts[k]),cross(pts[c],pts[a],pts[k]))>=-1e-15
+                {
+                    blocked=True
+                    break
+                }
+            }
+            if blocked
+            {
+                continue
+            }
+            triangles.append([a,b,c])
+            remaining.pop(i)
+            found=True
+            break
+        }
+        if not found
+        {
+            raise ValueError('Cannot triangulate sail profile')
+        }
+    }
+    triangles.append(remaining)
+    return triangles
+
+}
+def wing_force_samples(p)
+{
+    # Positive six-point degree-four quadrature integrates force and moment on each sail triangle.
+    pts=profile(p)
+    triangles=triangulate(pts)
+    total=sum(abs(cross(pts[a],pts[b],pts[c]))/2 for a,b,c in triangles)
+    samples=[]
+    for a,b,c in triangles
+    {
+        area=abs(cross(pts[a],pts[b],pts[c]))/2
+        vertices=[pts[a],pts[b],pts[c]]
+        for weights, fraction in [((.445948490915965,.445948490915965,.108103018168070),.223381589678011),((.445948490915965,.108103018168070,.445948490915965),.223381589678011),((.108103018168070,.445948490915965,.445948490915965),.223381589678011),((.091576213509771,.091576213509771,.816847572980458),.109951743655322),((.091576213509771,.816847572980458,.091576213509771),.109951743655322),((.816847572980458,.091576213509771,.091576213509771),.109951743655322)]
+        {
+            point=[sum(weights[k]*vertices[k][i] for k in range(3)) for i in range(2)]+[0]
+            samples.append({'point_m':point,'weight':area*fraction/total})
+        }
+    }
+    return samples
+}
+
+def properties(p)
+{
+    x,y,z=[v*.001 for v in p['size']]
+    center=[0.,0.,0.]
+    if p['shape']=='Box'
+    {
+        volume=x*y*z
+        moments=[(y*y+z*z)/12,(x*x+z*z)/12,(x*x+y*y)/12,0,0,0]
+    }
+    elif p['shape']=='Cylinder'
+    {
+        r=x/2
+        volume=math.pi*r*r*z
+        moments=[(3*r*r+z*z)/12,(3*r*r+z*z)/12,r*r/2,0,0,0]
+    }
+    elif p['shape']=='Sketch'
+    {
+        pts=profile(p)
+        area=mx=my=xx=yy=xy=0.
+        for (a,b),(c,d) in zip(pts,pts[1:]+pts[:1])
+        {
+            h=a*d-c*b
+            area+=h/2
+            mx+=(a+c)*h/6
+            my+=(b+d)*h/6
+            xx+=(a*a+a*c+c*c)*h/12
+            yy+=(b*b+b*d+d*d)*h/12
+            xy+=(2*a*b+a*d+c*b+2*c*d)*h/24
+        }
+        cx,cy=mx/area,my/area
+        center=[cx,cy,0.]
+        ex,ey,exy=xx/area-cx*cx,yy/area-cy*cy,xy/area-cx*cy
+        moments=[ey+z*z/12,ex+z*z/12,ex+ey,-exy,0,0]
+        volume=area*z
+    }
+    else
+    {
+        raise ValueError('Fast sail exporter supports Box, Cylinder and simple Sketch only')
+    }
+    mass=p['mass'] or volume*p['density']
+    return mass,center,[m*mass for m in moments]
+
+}
+def shift(v)
+{
+    x,y,z=v
+    return [y*y+z*z,x*x+z*z,x*x+y*y,-x*y,-x*z,-y*z]
+
+}
+def export(source,directory)
+{
+    directory=Path(directory)
+    directory.mkdir(parents=True,exist_ok=True)
+    doc=json.loads(Path(source).read_text())
+    parts=doc['parts']
+    assert len(parts)>20 and not any(p['thruster'] for p in parts)
+    # Restore collisions on all rigid parts; the thin membranes are collision-free proxies.
+    for p in parts
+    {
+        p['collision']='None' if p['shape']=='Sketch' else 'Auto'
+        if p['shape']=='Sketch' and p['aero']
+        {
+            p['aero']['force_samples']=wing_force_samples(p)
+        }
+        assert not p['constraints'] and not p['mirror_axes'] and not p['fillet']
+        assert p['joint'] in ('Free','Fixed','Hinge') and p['pivot']==[0,0,0]
+    }
+    inertials={p['name']:properties(p) for p in parts}
+    servo_mass=0.
+    for p in parts
+    {
+        s=p['servo']
+        if not s
+        {
+            continue
+        }
+        assert s['mount']=='Parent' and p['rotation']==[0,0,0]
+        old,old_c,old_i=inertials[p['parent']]
+        mass=s['mass_g']*.001
+        x,y,z=[v*.001 for v in s['housing_mm']]
+        housing=[mass*(y*y+z*z)/12,mass*(x*x+z*z)/12,mass*(x*x+y*y)/12,0,0,0]
+        point=[v*.001 for v in p['position']]
+        center=[(old*old_c[i]+mass*point[i])/(old+mass) for i in range(3)]
+        a=shift([old_c[i]-center[i] for i in range(3)])
+        b=shift([point[i]-center[i] for i in range(3)])
+        inertials[p['parent']]=(old+mass,center,[old_i[i]+housing[i]+old*a[i]+mass*b[i] for i in range(6)])
+        servo_mass+=mass
+    }
+    env=next(p['environment'] for p in parts if p['environment'])
+    root=E.Element('mujoco',model='Leonardo-inspired sail ornithopter')
+    E.SubElement(root,'compiler',angle='radian',autolimits='true')
+    E.SubElement(root,'option',timestep=str(env['timestep']),gravity=fmt(env['gravity']),density='0',viscosity='0',wind=fmt(env['wind']),integrator='implicitfast')
+    visual=E.SubElement(root,'visual')
+    E.SubElement(visual,'global',offwidth='1400',offheight='1000')
+    assets=E.SubElement(root,'asset')
+    world=E.SubElement(root,'worldbody')
+    E.SubElement(world,'light',pos='0 -1 3',dir='0 0 -1',diffuse='.8 .8 .8')
+    E.SubElement(world,'geom',name='floor',type='plane',size='2 2 .1',rgba='.15 .25 .20 1',friction='.8 .005 .0001')
+    actuators=E.SubElement(root,'actuator')
+    nodes={'':world}
+    controls=[]
+    bill=[]
+    for p in parts
+    {
+        name=p['name']
+        mass,center,tensor=inertials[name]
+        node=E.SubElement(nodes[p['parent']],'body',name=name,pos=fmt(v*.001 for v in p['position']),quat=fmt(quat(p['rotation'])))
+        nodes[name]=node
+        E.SubElement(node,'inertial',mass=str(mass),pos=fmt(center),fullinertia=fmt(tensor))
+        if p['joint']=='Free'
+        {
+            E.SubElement(node,'freejoint',name=name+'_joint')
+        }
+        elif p['joint']=='Hinge'
+        {
+            E.SubElement(node,'joint',name=name+'_joint',type='hinge',axis='0 1 0',range=fmt(math.radians(v) for v in p['limits']),damping=str(p['damping']),armature=str(p['armature']+p['servo']['rotor_inertia']))
+            E.SubElement(actuators,'position',name=name+'_motor',joint=name+'_joint',kp=str(p['kp']),kv=str(p['kv']),ctrlrange=fmt(math.radians(v) for v in p['limits']),forcerange=fmt([-p['torque'],p['torque']]))
+            controls.append({'name':name+'_motor','initial':0,'mode':'Position','units':'rad','gear':1,'minimum':math.radians(p['limits'][0]),'maximum':math.radians(p['limits'][1])})
+        }
+        geom={'name':name+'_visual','rgba':fmt(p['color']),'mass':'0','group':'1'}
+        if p['shape']=='Sketch'
+        {
+            pts=profile(p)
+            n=len(pts)
+            h=p['size'][2]*.0005
+            vertices=[[x,y,z] for z in [-h,h] for x,y in pts]
+            triangles=triangulate(pts)
+            faces=[[c,b,a] for a,b,c in triangles]+[[a+n,b+n,c+n] for a,b,c in triangles]
+            for a in range(n)
+            {
+                b=(a+1)%n
+                faces.extend([[a,b,b+n],[a,b+n,a+n]])
+            }
+            E.SubElement(assets,'mesh',name=name,vertex=fmt(v for row in vertices for v in row),face=' '.join(str(v) for row in faces for v in row))
+            geom.update(type='mesh',mesh=name,contype='0',conaffinity='0',fluidshape='ellipsoid',fluidcoef='0 0 0 0 0')
+            area=sum(abs(cross(pts[a],pts[b],pts[c]))/2 for a,b,c in triangles)
+            assert abs(area-p['aero']['area_m2'])<1e-10
+            assert abs(properties(p)[0]*1000-area*34.75)<1e-8
+        }
+        elif p['shape']=='Cylinder'
+        {
+            geom.update(type='cylinder',size=fmt([p['size'][0]*.0005,p['size'][2]*.0005]))
+        }
+        else
+        {
+            geom.update(type='box',size=fmt(v*.0005 for v in p['size']))
+        }
+        if p['aero']
+        {
+            geom.update(fluidshape='ellipsoid',fluidcoef='0 0 0 0 0')
+        }
+        E.SubElement(node,'geom',**geom)
+        bill.append({'part':name,'material':p['material'],'mass_g':properties(p)[0]*1000,'parent':p['parent'],'joint':p['joint']})
+    }
+    E.indent(root)
+    E.ElementTree(root).write(directory/'robot.xml',encoding='unicode')
+    for file in ['DaVinciOrnithopter.mjcad','robot.mjcad']
+    {
+        (directory/file).write_text(json.dumps(doc,indent=2))
+    }
+    (directory/'controls.json').write_text(json.dumps(controls,indent=2))
+    (directory/'scenario.json').write_text('{}')
+    physics={'environment':env,'wings':[{'body':p['name'],'settings':p['aero']} for p in parts if p['aero']],
+             'servos':[{'body':p['name'],'settings':p['servo']} for p in parts if p['servo']],
+             'servo_mass_kg':servo_mass,'wing_model':'Rigid normal-force approximation, no calibrated unsteady aerodynamics.'}
+    (directory/'physics.json').write_text(json.dumps(physics,indent=2))
+    notes={'reference':'https://airandspace.si.edu/stories/editorial/leonardo-da-vinci-and-flight',
+           'span_mm':828,'sail_thickness_mm':.025,'sail_areal_density_g_m2':34.75,
+           'estimated_total_mass_g':sum(v[0] for v in inertials.values())*1000,'servo_mass_g':servo_mass*1000,
+           'bill_of_materials':bill,'assumptions':['Leonardo-inspired original design; not a historical reconstruction.',
+             'Battery 12 g and controller/wiring 4 g are editable design allowances, not measured hardware.',
+             'Carbon/epoxy sheet density used for solid spar proxies; weigh purchased rods.',
+             'Rigid PET sail proxies, no cloth flex, camber, feathering, flutter or tear simulation.',
+             'Custom wing forces use air density 1.225 kg/m³. Built-in MuJoCo fluids disabled to avoid duplicate added-mass forces and thin-sail instability; rigid-frame air drag omitted.',
+             'Upstroke and downstroke coefficients equal: no assumed feathering lift benefit.',
+             'Seam, glue, horn and fastener extra mass must be measured and added.',
+             'Uncalibrated normal-force model; no validated prediction of real-world flight.']}
+    (directory/'design-assumptions.json').write_text(json.dumps(notes,indent=2))
+    app=Path(__file__).parent
+    for helper in ['flight_physics.py','servo_models.py','servo_catalog.json']
+    {
+        shutil.copyfile(app/helper,directory/helper)
+    }
+    shutil.copyfile(directory/'DaVinciOrnithopter.mjcad',app/'Examples/DaVinciOrnithopter.mjcad')
+    print(json.dumps({'parts':len(parts),'mass_g':notes['estimated_total_mass_g'],'sail_mass_g':sum(row['mass_g'] for row in bill if 'sail' in row['part'])},indent=2),flush=True)
+    return directory
+
+}
+if __name__=='__main__'
+{
+    import sys
+    export(sys.argv[1],sys.argv[2])
+}

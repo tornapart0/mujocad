@@ -1,0 +1,28 @@
+// Release packaging infrastructure; CAD/training logic stays in Sensible Lang.
+// Usage after translating: python build-mac-app.py PYTHON_HOME DEMO_VENV OUTPUT_APP
+import os, shutil, subprocess, sys, plistlib
+from pathlib import Path
+python_home, demo_venv, app = [Path(x).resolve() for x in sys.argv[1:4]]
+here = Path(__file__).resolve().parent
+contents = app / 'Contents'
+resources = contents / 'Resources'
+(contents / 'MacOS').mkdir(parents=True, exist_ok=True)
+resources.mkdir(exist_ok=True)
+subprocess.run(['clang', '-arch', 'arm64', '-mmacosx-version-min=14.0', str(here / 'launcher.c'), '-o', str(contents / 'MacOS/MuJoCoCAD')], check=True)
+shutil.copytree(python_home, resources / 'python', symlinks=True, ignore=shutil.ignore_patterns('__pycache__'), dirs_exist_ok=True)
+shutil.copytree(demo_venv / 'lib/python3.11/site-packages', resources / 'site-packages', symlinks=True, ignore=shutil.ignore_patterns('__pycache__', 'pip', 'pip-*', 'setuptools', 'setuptools-*', '_distutils_hack'), dirs_exist_ok=True)
+(resources / 'start.py').write_text('from mujocad_demo import main\nraise SystemExit(main())\n')
+s = (demo_venv / 'bin/mjpython').read_text()
+s = s.replace(s.splitlines()[0], '#!/usr/bin/env python3', 1)
+start = s.index('  otool_out = subprocess.run(')
+end = s.index("  for line in otool_out.split", start)
+// This standalone Python binary was verified to depend only on macOS system libraries.
+s = s[:start] + "  # Bundled standalone Python has no executable-relative dylibs.\n  otool_out = ''\n" + s[end:]
+f = resources / 'python/bin/mjpython'
+f.write_text(s)
+f.chmod(0o755)
+for f in resources.rglob('*.dist-info/direct_url.json')
+{
+    f.unlink()
+}
+(contents / 'Info.plist').write_bytes(plistlib.dumps({'CFBundleName': 'MuJoCoCAD', 'CFBundleDisplayName': 'MuJoCoCAD', 'CFBundleExecutable': 'MuJoCoCAD', 'CFBundleIdentifier': 'local.mujocad.demo', 'CFBundleShortVersionString': '0.5.1', 'CFBundleVersion': '501', 'CFBundlePackageType': 'APPL', 'NSHighResolutionCapable': True, 'LSMinimumSystemVersion': '14.0'}))

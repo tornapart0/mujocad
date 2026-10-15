@@ -1,0 +1,80 @@
+"""Open the corrected CAD and invoke its ordinary Create Training wizard/panel."""
+from pathlib import Path
+import sys,json
+from PySide6 import QtWidgets as W,QtCore as C
+from app import Window,STYLE
+from model import load_project
+from training_ui import TrainingWizard
+from cad_activity import CADActivity
+ROOT=Path(__file__).resolve().parent
+FOLDER=Path(sys.argv[1]).resolve() if len(sys.argv)>1 else ROOT.parent/'Connected-Ground-Ornithopter'
+app=W.QApplication(sys.argv)
+app.setApplicationName('MuJoCoCAD')
+app.setOrganizationName('MuJoCoCAD')
+app.setStyle('Fusion')
+app.setStyleSheet(STYLE)
+window=Window()
+window.parts=load_project(FOLDER/'ConnectedOrnithopter.mjcad')
+window.path=FOLDER/'ConnectedOrnithopter.mjcad'
+window.selected=0
+window.history.clear()
+window.redo_history.clear()
+window.dirty=False
+window.needs_frame=True
+window.refresh()
+window.cad_activity=CADActivity(window)
+window.setWindowTitle('MuJoCoCAD · Servo-wing ground takeoff · '+FOLDER.name)
+window.show()
+started=False
+
+def configure_wizard()
+{
+    wizard=app.activeModalWidget()
+    if isinstance(wizard,TrainingWizard)
+    {
+        wizard.goal.setCurrentIndex(2)
+        wizard.duration.setCurrentIndex(0)
+        wizard.job_name.setText('Servo-wing ground takeoff · V2' if FOLDER.name.endswith('V2') else 'Connected ornithopter · ground takeoff')
+        wizard.seconds.setValue(30)
+        if wizard.currentId()<2
+        {
+            if wizard.currentPage().isComplete()
+            {
+                wizard.next()
+            }
+        }
+        elif wizard.controls_valid() and wizard.target_valid()
+        {
+            wizard.accept()
+            advance.stop()
+        }
+    }
+}
+
+def begin()
+{
+    if window.jobs
+    {
+        C.QTimer.singleShot(300,begin)
+        return
+    }
+    advance.start(250)
+    window.create_training()
+}
+
+def audit()
+{
+    if window.training_panels
+    {
+        panel=window.training_panels[-1]
+        record={'entry_point':'Window.create_training / TrainingWizard / TrainingPanel','goal':panel.config['goal'],'folder':str(panel.folder),'running':panel.running,'state':panel.state.text(),'steps_requested':panel.config['steps']}
+        (FOLDER/'training-session.json').write_text(json.dumps(record,indent=2))
+    }
+}
+advance=C.QTimer()
+advance.timeout.connect(configure_wizard)
+record_timer=C.QTimer()
+record_timer.timeout.connect(audit)
+record_timer.start(2000)
+C.QTimer.singleShot(1000,begin)
+sys.exit(app.exec())

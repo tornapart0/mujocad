@@ -1,0 +1,902 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""Cached OpenCascade CAD geometry and validated MuJoCo robot export."""
+from dataclasses import dataclass, asdict, field
+from functools import lru_cache
+from pathlib import Path
+from threading import RLock
+import json, math, hashlib
+import xml.etree.ElementTree as ET
+import numpy as np
+from scipy.spatial.transform import Rotation
+from constraints import solve_sketch, validate_profile
+CAD_LOCK = RLock()
+
+@dataclass
+class Part
+{
+    name: str
+    shape: str = 'Box'
+    mesh_file: str = ''
+    scenario: dict = field(default_factory=dict)
+    environment: dict = field(default_factory=dict)
+    tendons: list = field(default_factory=list)
+    aero: dict = field(default_factory=dict)
+    thruster: dict = field(default_factory=dict)
+    propeller: dict = field(default_factory=dict)
+    servo: dict = field(default_factory=dict)
+    material: dict = field(default_factory=dict)
+    size: list = field(default_factory=lambda: [50.0, 50.0, 50.0])
+    position: list = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    rotation: list = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    sketch: list = field(default_factory=list)
+    sketch_plane: str = 'XY'
+    constraints: list = field(default_factory=list)
+    boolean: dict = field(default_factory=dict)
+    mirror_axes: list = field(default_factory=list)
+    fillet: float = 0.0
+    pivot: list = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    parent: str = ''
+    joint: str = 'Fixed'
+    axis: str = 'Y'
+    limits: list = field(default_factory=lambda: [-90.0, 90.0])
+    unlimited: bool = False
+    density: float = 1000.0
+    mass: float = 0.0
+    torque: float = 2.0
+    motor: str = 'Torque'
+    gear: float = 1.0
+    kp: float = 30.0
+    kv: float = 2.0
+    control: float = 0.0
+    damping: float = 0.2
+    stiffness: float = 0.0
+    springref: float = 0.0
+    frictionloss: float = 0.0
+    armature: float = 0.001
+    collision: str = 'Auto'
+    friction: list = field(default_factory=lambda: [0.8, 0.005, 0.0001])
+    collision_tolerance: float = 2.0
+    closure: dict = field(default_factory=dict)
+    sensors: bool = True
+    color: list = field(default_factory=lambda: [0.48, 0.66, 0.48, 1.0])
+}
+GEOMETRY_FIELDS = ('shape', 'size', 'sketch', 'sketch_plane', 'constraints', 'boolean', 'fillet', 'mirror_axes', 'mesh_file')
+
+def geometry_key(p)
+{
+    return json.dumps({k: getattr(p, k) for k in GEOMETRY_FIELDS}, sort_keys=True, separators=(',', ':'))
+
+}
+def solid(p)
+{
+    with CAD_LOCK
+    {
+        return _solid(geometry_key(p))
+
+    }
+}
+@lru_cache(maxsize=128)
+def _solid(key)
+{
+    from build123d import Box, Cylinder, Sphere, Align, Polygon, extrude, fillet, Location, Compound, ShapeList, Extrinsic, Plane, Matrix, Axis
+    p = Part(name='_geometry', **json.loads(key))
+    a = (Align.CENTER,) * 3
+    if p.shape == 'Box'
+    {
+        result = Box(*p.size, align=a)
+    }
+    elif p.shape == 'Cylinder'
+    {
+        result = Cylinder(p.size[0] / 2, p.size[2], align=a)
+    }
+    elif p.shape == 'Sphere'
+    {
+        result = Sphere(p.size[0] / 2, align=a)
+    }
+    elif p.shape in ['Screw M3', 'Screw M4']
+    {
+        d=3 if p.shape=='Screw M3' else 4
+        head_d,head_h,key=(5.5,3,2.5) if d==3 else (7,4,3)
+        from build123d import RegularPolygon
+        shaft=Cylinder(d/2,p.size[2],align=a).translate((0,0,-p.size[2]/2))
+        head=Cylinder(head_d/2,head_h,align=a).translate((0,0,head_h/2))
+        socket=extrude(RegularPolygon(key/math.sqrt(3),6),amount=head_h/2).translate((0,0,head_h/2))
+        result=shaft+head-socket
+    }
+    elif p.shape == 'Attachment loop'
+    {
+        from build123d import Torus
+        result=Torus(p.size[0]/2-p.size[1]/2,p.size[1]/2)
+    }
+    elif p.shape == 'Knot'
+    {
+        from build123d import Torus
+        result=Torus(p.size[0]/3,p.size[0]/6)+Torus(p.size[0]/3,p.size[0]/6).rotate(Axis.X,90)
+    }
+    elif p.shape == 'Spring'
+    {
+        from build123d import Helix,Circle,sweep
+        wire=p.size[1]
+        if wire>=p.size[0]/3 or p.size[2]<=8*wire
+        {
+            raise ValueError('Coil needs diameter > 3 × wire diameter and length > 8 × wire diameter.')
+        }
+        radius=(p.size[0]-wire)/2
+        path=Helix(p.size[2]/8,p.size[2],radius)
+        section=Plane(origin=path@0,z_dir=path%0)*Circle(wire/2)
+        result=sweep(section,path=path).translate((0,0,-p.size[2]/2))
+    }
+    elif p.shape == 'Propeller'
+    {
+        from build123d import Rectangle,loft
+        diameter,chord,thick=p.size
+        result=Cylinder(chord*.4,thick*3,align=a)
+        for angle in [0,180]
+        {
+            sections=[]
+            for radius,width,pitch in [(chord*.25,chord*.65,32),(diameter*.25,chord,20),(diameter*.49,chord*.3,10)]
+            {
+                section=(Plane.YZ*Rectangle(width,thick)).rotate(Axis.X,pitch).translate((radius,0,0))
+                sections.append(section)
+            }
+            result=result+loft(sections).rotate(Axis.Z,angle)
+        }
+    }
+    elif p.shape == 'Ellipsoid' 
+    {
+        result=Sphere(1,align=a).transform_geometry(Matrix([[p.size[0]/2,0,0,0],[0,p.size[1]/2,0,0],[0,0,p.size[2]/2,0],[0,0,0,1]]))
+    }
+    elif p.shape == 'Sketch'
+    {
+        points, _ = solve_sketch(p.sketch, p.constraints)
+        validate_profile(points)
+        points = np.asarray(points)
+        bounds = np.ptp(points, axis=0)
+        if np.min(bounds) <= 1e-06
+        {
+            raise ValueError('Sketch must enclose an area.')
+        }
+        if not p.constraints
+        {
+            points = points * np.asarray(p.size[:2]) / bounds
+        }
+        signed_area = np.sum(points[:, 0] * np.roll(points[:, 1], -1) - np.roll(points[:, 0], -1) * points[:, 1])
+        if signed_area < 0
+        {
+            points = points[::-1]
+        }
+        profile = Polygon(*(tuple(point) for point in points.tolist()), align=(Align.CENTER, Align.CENTER))
+        result = extrude(profile, amount=p.size[2]).translate((0, 0, -p.size[2] / 2))
+        if p.sketch_plane=='YZ'
+        {
+            result=result.rotate(Axis.Y,90)
+        }
+        elif p.sketch_plane!='XY'
+        {
+            raise ValueError('Sketch plane must be XY or YZ.')
+        }
+    }
+    elif p.shape == 'Boolean'
+    {
+        spec = p.boolean
+        left = Part(**spec['left'])
+        right = Part(**spec['right'])
+        left_s = solid(left).moved(Location(left.position, left.rotation, ordering=Extrinsic.XYZ))
+        right_s = solid(right).moved(Location(right.position, right.rotation, ordering=Extrinsic.XYZ))
+        operation = spec['operation']
+        if operation == 'Union'
+        {
+            result = left_s.fuse(right_s)
+        }
+        elif operation == 'Cut'
+        {
+            result = left_s.cut(right_s)
+        }
+        elif operation == 'Intersect'
+        {
+            result = left_s.intersect(right_s)
+        }
+        else
+        {
+            raise ValueError('Unknown Boolean operation.')
+        }
+        if isinstance(result, ShapeList)
+        {
+            result = Compound(list(result))
+        }
+        if result is None or not result.solids() or result.volume < 1e-06
+        {
+            raise ValueError('Boolean result is empty. Check overlap and target/tool order.')
+        }
+    }
+    else
+    {
+        raise ValueError(f'Unknown CAD feature {p.shape}.')
+    }
+    for axis in p.mirror_axes
+    {
+        if axis not in [0, 1, 2]
+        {
+            raise ValueError('Invalid mirror axis.')
+        }
+        result = result.mirror([Plane.YZ, Plane.XZ, Plane.XY][axis])
+    }
+    if p.fillet > 0
+    {
+        result = fillet(result.edges(), p.fillet)
+    }
+    if not result.is_valid or result.volume <= 0
+    {
+        raise ValueError('CAD kernel returned an invalid or empty solid.')
+    }
+    return result
+
+}
+@lru_cache(maxsize=128)
+def _preview(key, tolerance)
+{
+    with CAD_LOCK
+    {
+        s = _solid(key)
+        vertices, faces = s.tessellate(tolerance)
+        v = np.asarray([[x.X, x.Y, x.Z] for x in vertices], dtype=np.float32)
+        f = np.asarray(faces, dtype=np.uint32)
+        return (v, f, float(s.volume))
+
+    }
+}
+@lru_cache(maxsize=128)
+def _mesh_preview(key)
+{
+    import trimesh
+    p = Part(name='_mesh', **json.loads(key))
+    mesh = trimesh.load_mesh(p.mesh_file, process=True)
+    if not isinstance(mesh, trimesh.Trimesh) or not mesh.is_watertight
+    {
+        raise ValueError('Imported simulation mesh must be a watertight triangular solid.')
+    }
+    extents = mesh.extents
+    if min(extents) <= 0
+    {
+        raise ValueError('Imported mesh has zero thickness.')
+    }
+    mesh.vertices *= np.asarray(p.size) / extents
+    for axis in p.mirror_axes
+    {
+        mesh.vertices[:, axis] *= -1
+    }
+    mesh.fix_normals()
+    return np.asarray(mesh.vertices, dtype=np.float32), np.asarray(mesh.faces, dtype=np.uint32), float(mesh.volume)
+
+}
+def preview(p, tolerance=0.5)
+{
+    return _mesh_preview(geometry_key(p)) if p.shape == 'Mesh' else _preview(geometry_key(p), tolerance)
+
+}
+def cache_stats()
+{
+    return {'solid': _solid.cache_info()._asdict(), 'mesh': _preview.cache_info()._asdict()}
+
+}
+def local_matrix(p)
+{
+    m = np.eye(4)
+    m[:3, :3] = Rotation.from_euler('xyz', p.rotation, degrees=True).as_matrix()
+    m[:3, 3] = p.position
+    return m
+
+}
+def world_matrix(p, parts)
+{
+    lookup = {x.name: x for x in parts}
+    m = local_matrix(p)
+    seen = {p.name}
+    while p.parent
+    {
+        if p.parent in seen
+        {
+            raise ValueError('Robot parent cycle.')
+        }
+        seen.add(p.parent)
+        p = lookup[p.parent]
+        m = local_matrix(p) @ m
+    }
+    return m
+
+}
+def world_matrices(parts)
+{
+    lookup = {p.name: p for p in parts}
+    cache = {}
+    visiting = set()
+
+    def visit(p)
+    {
+        if p.name in cache
+        {
+            return cache[p.name]
+        }
+        if p.name in visiting
+        {
+            raise ValueError('Robot parent cycle.')
+        }
+        visiting.add(p.name)
+        matrix = local_matrix(p)
+        if p.parent
+        {
+            matrix = visit(lookup[p.parent]) @ matrix
+        }
+        visiting.remove(p.name)
+        cache[p.name] = matrix
+        return matrix
+    }
+    for part in parts
+    {
+        visit(part)
+    }
+    return cache
+
+}
+def world_position(p, parts)
+{
+    return world_matrix(p, parts)[:3, 3].tolist()
+
+}
+def set_world_matrix(p, matrix, parts)
+{
+    lookup = {x.name: x for x in parts}
+    local = np.linalg.inv(world_matrix(lookup[p.parent], parts)) @ matrix if p.parent else matrix
+    p.position = local[:3, 3].tolist()
+    p.rotation = Rotation.from_matrix(local[:3, :3]).as_euler('xyz', degrees=True).tolist()
+
+}
+def boolean_part(target, tool, parts, operation)
+{
+    from copy import deepcopy
+    relative = np.linalg.inv(world_matrix(target, parts)) @ world_matrix(tool, parts)
+    left = deepcopy(target)
+    left.position = [0.0, 0.0, 0.0]
+    left.rotation = [0.0, 0.0, 0.0]
+    left.parent = ''
+    right = deepcopy(tool)
+    right.parent = ''
+    right.position = relative[:3, 3].tolist()
+    right.rotation = Rotation.from_matrix(relative[:3, :3]).as_euler('xyz', degrees=True).tolist()
+    result = deepcopy(target)
+    result.shape = 'Boolean'
+    result.fillet = 0.0
+    result.sketch = []
+    result.constraints = []
+    result.boolean = {'operation': operation, 'left': asdict(left), 'right': asdict(right)}
+    s = solid(result)
+    result.size = list(s.bounding_box().size)
+    return result
+
+}
+def validate(parts)
+{
+    from physics_features import environment, tendons, validate_flight
+    environment(parts)
+    tendons(parts)
+    validate_flight(parts)
+    from servo_models import validate_servos
+    validate_servos(parts)
+    if not parts
+    {
+        raise ValueError('Add at least one part.')
+    }
+    names = [p.name for p in parts]
+    lookup = {p.name: p for p in parts}
+    if len(names) != len(set(names))
+    {
+        raise ValueError('Part names must be unique.')
+    }
+    from hardware import validate_propellers
+    validate_propellers(parts)
+    for p in parts
+    {
+        if not p.name or any((c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-' for c in p.name))
+        {
+            raise ValueError('Names must use letters, numbers, underscores or hyphens.')
+        }
+        numeric = [*p.size, *p.position, *p.rotation, *p.pivot, *p.limits, p.density, p.torque, p.mass, p.gear, p.kp, p.kv, p.control, p.damping, p.frictionloss, p.armature, *p.friction, p.collision_tolerance, p.stiffness, p.springref]
+        if not all((math.isfinite(float(v)) for v in numeric))
+        {
+            raise ValueError(f'{p.name}: settings must be finite numbers.')
+        }
+        if min(p.size) <= 0 or p.density <= 0 or p.torque <= 0 or (p.mass < 0) or (p.gear <= 0)
+        {
+            raise ValueError('Dimensions, density, force and gear must be positive; mass override cannot be negative.')
+        }
+        if min(p.kp, p.kv, p.damping, p.frictionloss, p.armature, *p.friction) < 0
+        {
+            raise ValueError('Gains, damping, friction and armature cannot be negative.')
+        }
+        if p.parent and p.parent not in lookup
+        {
+            raise ValueError(f'{p.name}: missing parent.')
+        }
+        world_matrix(p, parts)
+        if p.joint in ['Rigid screw M3','Rigid screw M4'] and not p.parent
+        {
+            raise ValueError('Rigid screw joints need a parent part.')
+        }
+        if p.joint not in ['Fixed', 'Rigid screw M3', 'Rigid screw M4', 'Hinge', 'Slide', 'Ball', 'Free']
+        {
+            raise ValueError('Unknown joint.')
+        }
+        if p.joint == 'Free' and p.parent
+        {
+            raise ValueError('Floating bases must be root parts, attached to world.')
+        }
+        if p.joint in ['Hinge', 'Slide'] and (not p.unlimited) and (p.limits[0] >= p.limits[1])
+        {
+            raise ValueError('Minimum joint limit must be below maximum.')
+        }
+        if p.motor not in ['None', 'Torque', 'Position', 'Velocity'] or p.axis not in ['X', 'Y', 'Z']
+        {
+            raise ValueError('Unknown motor or axis.')
+        }
+        if p.joint == 'Ball' and p.motor not in ['None', 'Torque']
+        {
+            raise ValueError('Ball joints support torque motors or no motor; use hinges for servo positioning.')
+        }
+        if p.collision not in ['Auto', 'Primitive', 'Convex hull', 'Decomposition', 'None']
+        {
+            raise ValueError('Unknown collision mode.')
+        }
+        if p.collision_tolerance <= 0
+        {
+            raise ValueError('Collision tolerance must be positive.')
+        }
+        if p.stiffness < 0
+        {
+            raise ValueError('Joint spring stiffness cannot be negative.')
+        }
+        if p.closure
+        {
+            other = p.closure.get('body')
+            if other not in lookup or other == p.name
+            {
+                raise ValueError('Loop closure must reference another existing body.')
+            }
+            if p.closure.get('type') not in ['Connect', 'Weld']
+            {
+                raise ValueError('Unknown closure type.')
+
+            }
+        }
+    }
+}
+def save_project(path, parts)
+{
+    validate(parts)
+    Path(path).write_text(json.dumps({'format': 'MuJoCoCAD', 'version': 2, 'units': 'mm', 'parts': [asdict(p) for p in parts]}, indent=2))
+
+}
+def load_project(path)
+{
+    d = json.loads(Path(path).read_text())
+    if d.get('format') != 'MuJoCoCAD' or d.get('version') not in [1, 2]
+    {
+        raise ValueError('Unsupported project format.')
+    }
+    parts = [Part(**x) for x in d['parts']]
+    validate(parts)
+    return parts
+
+}
+def fmt(values)
+{
+    return ' '.join((f'{float(x):.12g}' for x in values))
+
+}
+def _collision_meshes(p, vertices, faces, cache_dir)
+{
+    import coacd, trimesh
+    digest = hashlib.sha256(geometry_key(p).encode() + str(p.collision_tolerance).encode()).hexdigest()
+    path = cache_dir / f'{digest}.npz'
+    if path.exists()
+    {
+        with np.load(path, allow_pickle=False) as z
+        {
+            return [(z[f'v{i}'], z[f'f{i}']) for i in range(__import__('operator').floordiv(len(z.files), 2))]
+        }
+    }
+    coacd.set_log_level('error')
+    mesh = trimesh.Trimesh(vertices=np.asarray(vertices, dtype=float) * 0.001, faces=faces, process=True)
+    hulls = []
+    for component in mesh.split(only_watertight=False)
+    {
+        if not component.is_watertight
+        {
+            raise ValueError('Collision decomposition needs a watertight CAD mesh.')
+        }
+        pieces = coacd.run_coacd(coacd.Mesh(component.vertices, component.faces), threshold=p.collision_tolerance * 0.001, real_metric=True, max_convex_hull=64, resolution=1000, mcts_iterations=60, mcts_nodes=10, mcts_max_depth=3, seed=42)
+        hulls.extend(((np.asarray(v) * 1000, np.asarray(f)) for v, f in pieces))
+    }
+    if not hulls
+    {
+        raise ValueError('Collision decomposition returned no pieces.')
+    }
+    payload = {}
+    for i, (v, f) in enumerate(hulls)
+    {
+        payload[f'v{i}'] = v
+        payload[f'f{i}'] = f
+    }
+    np.savez_compressed(path, **payload)
+    return hulls
+
+}
+def export_model(directory, parts)
+{
+    from build123d import export_step, Compound, Location, CenterOf, Extrinsic
+    import trimesh, mujoco
+    validate(parts)
+    root = Path(directory)
+    root.mkdir(parents=True, exist_ok=True)
+    meshes = root / 'meshes'
+    cad = root / 'cad'
+    meshes.mkdir(exist_ok=True)
+    cad.mkdir(exist_ok=True)
+    cache_dir = Path(__file__).parent / '.collision-cache'
+    cache_dir.mkdir(exist_ok=True)
+    model = ET.Element('mujoco', model='MuJoCoCAD_robot')
+    ET.SubElement(model, 'compiler', angle='radian', meshdir='meshes', autolimits='true')
+    from physics_features import environment, tendons
+    env = environment(parts)
+    ET.SubElement(model, 'option', timestep=str(env['timestep']), gravity=fmt(env['gravity']), density=str(0 if any(p.aero for p in parts) else env['density']), viscosity=str(0 if any(p.aero for p in parts) else env['viscosity']), wind=fmt(env['wind']), integrator='implicitfast', iterations='50')
+    visual = ET.SubElement(model, 'visual')
+    ET.SubElement(visual, 'global', azimuth='135', elevation='-25')
+    assets = ET.SubElement(model, 'asset')
+    world = ET.SubElement(model, 'worldbody')
+    ET.SubElement(world, 'light', pos='0 -1 2', dir='0 0 -1', diffuse='.8 .8 .8')
+    if env['ground']
+    {
+        ET.SubElement(world, 'geom', name='floor', type='plane', size='2 2 .1', rgba='.72 .69 .55 1', friction='.8 .005 .0001')
+    }
+    actuators = ET.SubElement(model, 'actuator')
+    sensors = ET.SubElement(model, 'sensor')
+    contact = ET.SubElement(model, 'contact')
+    equalities = ET.SubElement(model, 'equality')
+    solids = {}
+    collisions = {}
+    inertials = {}
+    controls = []
+    for p in parts
+    {
+        s = None
+        if p.shape != 'Mesh'
+        {
+            s = solid(p)
+            solids[p.name] = s
+            with CAD_LOCK
+            {
+                export_step(s, str(cad / f'{p.name}.step'))
+            }
+        }
+        vertices, faces, volume = preview(p, 0.2)
+        trimesh.Trimesh(vertices=vertices, faces=faces, process=False).export(meshes / f'{p.name}.stl')
+        ET.SubElement(assets, 'mesh', name=p.name, file=f'{p.name}.stl', scale='.001 .001 .001')
+        mass = volume * p.density * 1e-09
+        scale = p.density * 1e-15
+        if p.mass > 0
+        {
+            scale *= p.mass / mass
+            mass = p.mass
+        }
+        if p.shape == 'Mesh'
+        {
+            physical = trimesh.Trimesh(vertices=vertices, faces=faces, process=True)
+            physical.fix_normals()
+            center_values = physical.center_mass
+            tensor = physical.moment_inertia * scale
+        }
+        else
+        {
+            with CAD_LOCK
+            {
+                center = s.center(CenterOf.MASS)
+                center_values = np.array([center.X, center.Y, center.Z])
+                tensor = np.asarray(s.matrix_of_inertia) * scale
+            }
+        }
+        inertials[p.name] = (mass, np.asarray(center_values) * 0.001, tensor)
+        reference=p.material.get('inertial_reference')
+        if reference
+        {
+            if reference.get('geometry_sha256')!=hashlib.sha256(geometry_key(p).encode()).hexdigest() or not reference.get('source')
+            {
+                raise ValueError(p.name+': reference inertia is tied to the imported geometry. Remove or remeasure it after editing geometry.')
+            }
+            center=np.asarray(reference['center_m'],float)
+            tensor=np.asarray(reference['tensor_kg_m2'],float)
+            if center.shape!=(3,) or tensor.shape!=(3,3) or not np.isfinite(center).all() or not np.isfinite(tensor).all() or not np.allclose(tensor,tensor.T,rtol=0,atol=1e-15) or np.min(np.linalg.eigvalsh(tensor))<=0 or p.mass<=0
+            {
+                raise ValueError(p.name+': measured reference mass/inertia must be positive, finite and symmetric.')
+            }
+            inertials[p.name]=(p.mass,center,tensor)
+        }
+        mode = p.collision
+        if mode == 'Auto'
+        {
+            mode = 'Primitive' if p.shape in ['Box', 'Cylinder', 'Sphere'] and (not p.fillet) else 'Decomposition'
+        }
+        if mode == 'Decomposition'
+        {
+            pieces = _collision_meshes(p, vertices, faces, cache_dir)
+            collisions[p.name] = []
+            for i, (v, f) in enumerate(pieces)
+            {
+                name = f'{p.name}_collision_{i}'
+                trimesh.Trimesh(vertices=v, faces=f, process=False).export(meshes / f'{name}.stl')
+                ET.SubElement(assets, 'mesh', name=name, file=f'{name}.stl', scale='.001 .001 .001')
+                collisions[p.name].append({'type': 'mesh', 'mesh': name})
+            }
+        }
+        elif mode == 'Convex hull'
+        {
+            collisions[p.name] = [{'type': 'mesh', 'mesh': p.name}]
+        }
+        elif mode == 'None'
+        {
+            collisions[p.name] = []
+        }
+        else
+        {
+            if p.shape == 'Cylinder'
+            {
+                geo = {'type': 'cylinder', 'size': fmt([p.size[0] * 0.0005, p.size[2] * 0.0005])}
+            }
+            elif p.shape == 'Sphere'
+            {
+                geo = {'type': 'sphere', 'size': str(p.size[0] * 0.0005)}
+            }
+            else
+            {
+                lo, hi = np.asarray(vertices).min(axis=0), np.asarray(vertices).max(axis=0)
+                geo = {'type': 'box', 'size': fmt((hi-lo) * 0.0005), 'pos': fmt((hi+lo) * 0.0005)}
+            }
+            collisions[p.name] = [geo]
+        }
+    }
+    from servo_models import add_servo_inertia
+    servo_mass = add_servo_inertia(parts, inertials)
+    from hardware import add_cable_mass
+    cable_mass=add_cable_mass(parts,inertials)
+    if solids
+    {
+        with CAD_LOCK
+        {
+            export_step(Compound(children=[solids[p.name].moved(Location(world_position(p, parts), Rotation.from_matrix(world_matrix(p, parts)[:3, :3]).as_euler('xyz', degrees=True).tolist(), ordering=Extrinsic.XYZ)) for p in parts if p.name in solids]), str(cad / 'robot_assembly.step'))
+        }
+    }
+    nodes = {}
+    pending = list(parts)
+    while pending
+    {
+        for p in list(pending)
+        {
+            if p.parent and p.parent not in nodes
+            {
+                continue
+            }
+            quaternion = Rotation.from_euler('xyz', p.rotation, degrees=True).as_quat()
+            node = ET.SubElement(nodes[p.parent] if p.parent else world, 'body', name=p.name, pos=fmt(np.asarray(p.position) * 0.001), quat=fmt([quaternion[3], *quaternion[:3]]))
+            nodes[p.name] = node
+            mass, center, tensor = inertials[p.name]
+            ET.SubElement(node, 'inertial', mass=str(mass), pos=fmt(center), fullinertia=fmt([tensor[0, 0], tensor[1, 1], tensor[2, 2], tensor[0, 1], tensor[0, 2], tensor[1, 2]]))
+            fluid = {'fluidshape': 'ellipsoid', 'fluidcoef': '0 0 0 0 0'} if p.aero else {}
+            ET.SubElement(node, 'geom', name=p.name + '_visual', type='mesh', mesh=p.name, rgba=fmt(p.color), contype='0', conaffinity='0', mass='0', group='1', **fluid)
+            for i, geo in enumerate(collisions[p.name])
+            {
+                ET.SubElement(node, 'geom', name=f'{p.name}_contact_{i}', mass='0', rgba='.45 .5 .55 .15', friction=fmt(p.friction), group='3', **geo)
+            }
+            ET.SubElement(node, 'site', name=f'{p.name}_tip', pos=fmt([0, 0, p.size[2] * 0.0005]), size='.003', rgba='0 .8 .8 1', group='4')
+            joint_name = f'{p.name}_joint'
+            unit = math.pi / 180 if p.joint == 'Hinge' else 0.001
+            if p.joint == 'Free'
+            {
+                ET.SubElement(node, 'freejoint', name=joint_name)
+            }
+            elif p.joint not in ['Fixed', 'Rigid screw M3', 'Rigid screw M4']
+            {
+                kw = {'name': joint_name, 'type': {'Hinge': 'hinge', 'Slide': 'slide', 'Ball': 'ball'}[p.joint], 'pos': fmt(np.asarray(p.pivot) * 0.001), 'damping': str(p.damping), 'frictionloss': str(p.frictionloss), 'armature': str(p.armature + (p.servo.get('rotor_inertia', 0) if p.servo else 0))}
+                if p.joint in ['Hinge', 'Slide']
+                {
+                    kw['axis'] = {'X': '1 0 0', 'Y': '0 1 0', 'Z': '0 0 1'}[p.axis]
+                    kw['limited'] = 'false' if p.unlimited else 'true'
+                    if not p.unlimited
+                    {
+                        kw['range'] = fmt(np.asarray(p.limits) * unit)
+                    }
+                    if p.motor != 'None'
+                    {
+                        kw['actuatorfrclimited'] = 'true'
+                        kw['actuatorfrcrange'] = fmt([-p.torque, p.torque])
+                    }
+                }
+                if p.joint in ['Hinge', 'Slide']
+                {
+                    kw['stiffness']=str(p.stiffness)
+                    kw['springref']=str(p.springref*unit)
+                }
+                ET.SubElement(node, 'joint', **kw)
+                if p.motor != 'None'
+                {
+                    axes = range(3) if p.joint == 'Ball' else [None]
+                    for axis in axes
+                    {
+                        name = f'{p.name}_motor' + ('' if axis is None else '_' + str(axis))
+                        gear = str(p.gear) if axis is None else fmt([p.gear if i == axis else 0 for i in range(6)])
+                        kind = {'Torque': 'motor', 'Position': 'position', 'Velocity': 'velocity'}[p.motor]
+                        maximum = p.torque / p.gear
+                        if p.motor == 'Position'
+                        {
+                            limits = np.asarray(p.limits) * unit * p.gear
+                            extra = {'kp': str(p.kp), 'kv': str(p.kv)}
+                            units = 'rad' if p.joint == 'Hinge' else 'm'
+                            initial = p.control * unit * p.gear
+                        }
+                        elif p.motor == 'Velocity'
+                        {
+                            limits = np.array([-max((abs(x) for x in p.limits)), max((abs(x) for x in p.limits))]) * unit * p.gear
+                            extra = {'kv': str(p.kv)}
+                            units = 'rad/s' if p.joint == 'Hinge' else 'm/s'
+                            initial = p.control * unit * p.gear
+                        }
+                        else
+                        {
+                            limits = np.array([-maximum, maximum])
+                            extra = {}
+                            units = 'Nm' if p.joint != 'Slide' else 'N'
+                            initial = p.control / p.gear
+                        }
+                        ET.SubElement(actuators, kind, name=name, joint=joint_name, gear=gear, ctrllimited='true', ctrlrange=fmt(limits), forcelimited='true', forcerange=fmt([-maximum, maximum]), **extra)
+                        controls.append({'name': name, 'mode': p.motor, 'units': 'normalized voltage' if p.propeller else units, 'gear': p.gear, 'minimum': float(limits[0]), 'maximum': float(limits[1]), 'initial': float(np.clip(initial, *limits))})
+                    }
+                }
+                if p.sensors and p.joint in ['Hinge', 'Slide']
+                {
+                    ET.SubElement(sensors, 'jointpos', name=p.name + '_position', joint=joint_name)
+                    ET.SubElement(sensors, 'jointvel', name=p.name + '_velocity', joint=joint_name)
+                }
+            }
+            if p.sensors
+            {
+                ET.SubElement(sensors, 'framepos', name=p.name + '_tip_position', objtype='site', objname=p.name + '_tip')
+                ET.SubElement(sensors, 'framequat', name=p.name + '_orientation', objtype='body', objname=p.name)
+            }
+            if p.parent
+            {
+                ET.SubElement(contact, 'exclude', body1=p.name, body2=p.parent)
+            }
+            pending.remove(p)
+        }
+    }
+    for p in parts
+    {
+        if p.thruster
+        {
+            thrust = p.thruster
+            site_name = p.name + '_thrust_site'
+            name = p.name + '_thruster'
+            ET.SubElement(nodes[p.name], 'site', name=site_name, size='.004', rgba='.9 .7 .2 1', group='4')
+            gear = [0.0] * 6
+            gear['XYZ'.index(thrust['axis'])] = 1.0
+            ET.SubElement(actuators, 'general', name=name, site=site_name, gear=fmt(gear), ctrllimited='true', ctrlrange=fmt([0, thrust['max_force']]), forcelimited='true', forcerange=fmt([0, thrust['max_force']]))
+            controls.append({'name': name, 'mode': 'Thrust', 'units': 'N', 'gear': 1, 'minimum': 0, 'maximum': thrust['max_force'], 'initial': thrust['initial']})
+        }
+    }
+    tendon_root = ET.SubElement(model, 'tendon')
+    for cable in tendons(parts)
+    {
+        name = cable['name']
+        node = ET.SubElement(tendon_root, 'spatial', name=name, width=str(cable.get('diameter_mm',1)*.001), rgba='.87 .69 .26 1', stiffness=str(cable['stiffness']), damping=str(cable['damping']), springlength=fmt([0, cable['rest_mm'] * .001]))
+        for i, point in enumerate(cable['points'])
+        {
+            site_name = name + '_anchor_' + str(i)
+            ET.SubElement(nodes[point['body']], 'site', name=site_name, pos=fmt(np.asarray(point['position']) * .001), size='.002', rgba='.87 .69 .26 1', group='4')
+            ET.SubElement(node, 'site', site=site_name)
+        }
+        if cable['mode'] != 'Passive spring'
+        {
+            actuator_name = name + '_tendon_motor'
+            if cable['mode'] == 'Pull force'
+            {
+                limits = [-cable['force'], 0]
+                initial = -min(cable['target'], cable['force'])
+                ET.SubElement(actuators, 'motor', name=actuator_name, tendon=name, ctrllimited='true', ctrlrange=fmt(limits), forcelimited='true', forcerange=fmt(limits))
+                units = 'N (negative pulls)'
+            }
+            else
+            {
+                limits = [0, max(cable['rest_mm'], cable['target'], 1) * .002]
+                initial = cable['target'] * .001
+                ET.SubElement(actuators, 'position', name=actuator_name, tendon=name, kp=str(cable['kp']), ctrllimited='true', ctrlrange=fmt(limits), forcelimited='true', forcerange=fmt([-cable['force'], 0]))
+                units = 'm'
+            }
+            controls.append({'name': actuator_name, 'mode': cable['mode'], 'units': units, 'gear': 1, 'minimum': limits[0], 'maximum': limits[1], 'initial': initial})
+        }
+    }
+    for p in parts
+    {
+        if p.closure
+        {
+            kw = {'name': p.name + '_closure', 'body1': p.name, 'body2': p.closure['body']}
+            if 'solref' in p.closure
+            {
+                reference=p.closure['solref']
+                if len(reference)!=2 or not all(math.isfinite(float(v)) and v>0 for v in reference)
+                {
+                    raise ValueError('Loop solver reference requires two positive finite values.')
+                }
+                kw['solref']=fmt(reference)
+                kw['solimp']='.999 .999 .001'
+            }
+            if p.closure['type'] == 'Connect'
+            {
+                kw['anchor'] = fmt(np.asarray(p.closure.get('anchor', [0, 0, 0])) * 0.001)
+            }
+            ET.SubElement(equalities, p.closure['type'].lower(), **kw)
+        }
+    }
+    ET.indent(model)
+    target = root / 'robot.xml'
+    ET.ElementTree(model).write(target, encoding='unicode')
+    compiled = mujoco.MjModel.from_xml_path(str(target))
+    save_project(root / 'robot.mjcad', parts)
+    (root / 'controls.json').write_text(json.dumps(controls, indent=2))
+    scenarios = [p.scenario for p in parts if p.scenario]
+    (root / 'scenario.json').write_text(json.dumps(scenarios[0] if len(scenarios) == 1 else {}, indent=2))
+    def exported_aero(p)
+    {
+        settings=dict(p.aero)
+        if settings.get('area_source')=='geometry' and (p.shape!='Sketch' or p.constraints or settings.get('axis')!='Z')
+        {
+            raise ValueError(p.name+': automatic wing area requires an unconstrained planar sketch with local Z normal. Reconfigure the wing model after changing its feature type.')
+        }
+        if p.shape=='Sketch' and not p.constraints and settings.get('axis')=='Z'
+        {
+            from sail_preview_export import wing_force_samples,profile
+            settings['force_samples']=wing_force_samples(asdict(p))
+            if settings.get('area_source')=='geometry'
+            {
+                points=profile(asdict(p))
+                settings['area_m2']=abs(sum(a[0]*b[1]-b[0]*a[1] for a,b in zip(points,points[1:]+points[:1])))/2
+            }
+        }
+        return settings
+    }
+    physics = {'environment': env, 'wings': [{'body': p.name, 'settings': exported_aero(p)} for p in parts if p.aero], 'servos': [{'body': p.name, 'settings': p.servo} for p in parts if p.servo], 'propellers': [{'body':p.name,'settings':dict(p.propeller,diameter_m=p.size[0]*.001)} for p in parts if p.propeller], 'cable_mass_kg':cable_mass, 'servo_mass_kg': servo_mass, 'builtin_fluids_disabled': any(p.aero for p in parts), 'wing_model': 'Approximate normal-force model, not experimentally calibrated. Custom wing scenes disable built-in fluids; frame air drag omitted.'}
+    (root / 'physics.json').write_text(json.dumps(physics, indent=2))
+    import shutil
+    helper = Path(__file__).with_name('flight_physics.py')
+    for module in ['flappy_physics.py','hardware.py']
+    {
+        source=Path(__file__).with_name(module)
+        if source.exists() and source.resolve()!=(root/module).resolve()
+        {
+            shutil.copyfile(source,root/module)
+        }
+    }
+    if helper.resolve() != (root / 'flight_physics.py').resolve()
+    {
+        shutil.copyfile(helper, root / 'flight_physics.py')
+    servo_helper = Path(__file__).with_name('servo_models.py')
+    if servo_helper.resolve() != (root / 'servo_models.py').resolve()
+    {
+        shutil.copyfile(servo_helper, root / 'servo_models.py')
+        shutil.copyfile(Path(__file__).with_name('servo_catalog.json'), root / 'servo_catalog.json')
+    }
+    }
+    (root / 'SIMULATION.txt').write_text('CAD uses mm; MuJoCo uses meters. Mass/inertia use CAD geometry or explicitly locked identified reference data; motor and cable mass are added. Propellers use static coefficient aerodynamics and an approximate electrical motor, not a calibrated full-flight model. Routed cables use ideal frictionless guide sites, not cable-solid contact or knot strength. Rigid screws lock parts; preload, threads and fastener failure are not modeled. Position motors take radians/meters, velocity motors rad/s or m/s. Joint torque limits are in Nm/N. Parent-child collisions are excluded; other self contacts are enabled. Decomposition is approximate and controlled by collision tolerance.\n')
+    return (target, compiled)
+
+}
+def demo()
+{
+    return [Part('base', size=[120, 100, 40], position=[0, 0, 20]), Part('arm', size=[25, 25, 140], position=[0, 0, 90], parent='base', joint='Hinge', pivot=[0, 0, -70], torque=8, motor='Position', kp=80, kv=8)]
+}

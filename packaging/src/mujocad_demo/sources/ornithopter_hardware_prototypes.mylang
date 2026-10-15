@@ -1,0 +1,75 @@
+"""Compare physical servo substitutions including housing inertia; never claim validated hardware flight."""
+from pathlib import Path
+from copy import deepcopy
+import json,time,itertools
+from model import load_project,save_project,export_model
+from ornithopter_gait_search import FixtureGait,search
+from ornithopter_optimize import SERVO_SOURCE
+
+def substitute(part)
+{
+    part.servo.update(profile='KST X08H Plus nominal 7.4 V',mass_g=9.5,stall_nm=4.84*.0980665,continuous_nm=1.3*.0980665,seconds_60=.12,voltage=7.4,rated_voltage=7.4,housing_mm=[23.5,8,16.8],source=SERVO_SOURCE,continuous_rating_assumed=True,notes='Manufacturer stall torque, no-load speed and mass; continuous rating illustrative, thermal validation required.')
+    part.torque=part.servo['continuous_nm'] if part.servo['continuous_duty'] else part.servo['stall_nm']
+}
+
+def main()
+{
+    out=Path('outputs/Prototype-Hardware')
+    out.mkdir(parents=True,exist_ok=True)
+    deadline=time.time()+2700
+    values=json.loads(Path('outputs/Prototype-Feather90/gait-progress.json').read_text())['best']['parameters']
+    reports=[]
+    for index,(geometry,flap_x08,pitch_x08) in enumerate(itertools.product([9,6],[False,True],[False,True]))
+    {
+        if not flap_x08 and not pitch_x08
+        {
+            continue
+        }
+        if time.time()>=deadline
+        {
+            break
+        }
+        folder=out/str(index)
+        parts=load_project(Path('outputs/Overnight-Morphology')/str(geometry)/'candidate.mjcad')
+        for p in parts
+        {
+            if p.name.endswith('_wing_pitch')
+            {
+                p.limits=[-90,0]
+                if pitch_x08
+                {
+                    substitute(p)
+                }
+            }
+            elif p.name.endswith('_wing_hinge') and flap_x08
+            {
+                substitute(p)
+            }
+        }
+        folder.mkdir(parents=True,exist_ok=True)
+        save_project(folder/'candidate.mjcad',parts)
+        fixture=deepcopy(parts)
+        next(p for p in fixture if p.name=='fuselage_balsa_keel').joint='Fixed'
+        export_model(folder/'fixture',fixture)
+        score,report=FixtureGait(folder/'fixture').score(values)
+        report.update(folder=str(folder),geometry=geometry,flap_x08=flap_x08,pitch_x08=pitch_x08)
+        reports.append(report)
+        (out/'screening.json').write_text(json.dumps(reports,indent=2))
+        print(json.dumps(report),flush=True)
+    }
+    for report in sorted(reports,key=lambda r:r['lift_to_weight'],reverse=True)[:2]
+    {
+        if time.time()>=deadline
+        {
+            break
+        }
+        folder=Path(report['folder'])
+        search(folder/'fixture',folder/'gait-search',generations=8,population=16,pitch_max=90,deadline=deadline,seed=84+int(folder.name))
+        report['optimized']=json.loads((folder/'gait-search/gait-results.json').read_text())
+        (out/'results.json').write_text(json.dumps(reports,indent=2))
+    }
+}
+if __name__=='__main__'
+{
+    main()
+}

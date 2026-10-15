@@ -1,0 +1,159 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+"""Numerical point/segment sketch constraints, in millimeters and degrees."""
+import numpy as np
+from scipy.optimize import least_squares
+KINDS = ['Horizontal', 'Vertical', 'Length', 'Distance', 'Coincident', 'Parallel', 'Perpendicular', 'Equal length', 'Angle', 'Fix point']
+
+def solve_sketch(points, constraints, tolerance=1e-05)
+{
+    initial = np.asarray(points, dtype=float)
+    if initial.ndim != 2 or initial.shape[1] != 2 or len(initial) < 3
+    {
+        raise ValueError('Draw at least three vertices first.')
+    }
+    n = len(initial)
+
+    def residual(flat)
+    {
+        p = flat.reshape(n, 2)
+        r = []
+        for c in constraints
+        {
+            kind = c['kind']
+            ids = c['indices']
+            value = c.get('value', 0.0)
+            if any((not isinstance(i, int) or i < 0 or i >= n for i in ids))
+            {
+                raise ValueError('Constraint vertex index is outside the sketch.')
+            }
+            expected = {'Horizontal': 2, 'Vertical': 2, 'Length': 2, 'Distance': 2, 'Coincident': 2, 'Parallel': 4, 'Perpendicular': 4, 'Equal length': 4, 'Angle': 4, 'Fix point': 1}[kind]
+            if len(ids) != expected
+            {
+                raise ValueError(f'{kind} needs {expected} vertex indices.')
+            }
+            if kind == 'Fix point'
+            {
+                r.extend(p[ids[0]] - np.asarray(c['point']))
+                continue
+            }
+            a, b = (p[ids[0]], p[ids[1]])
+            u = b - a
+            if kind == 'Horizontal'
+            {
+                r.append(u[1])
+            }
+            elif kind == 'Vertical'
+            {
+                r.append(u[0])
+            }
+            elif kind in ('Length', 'Distance')
+            {
+                if value <= 0
+                {
+                    raise ValueError('Lengths must be positive.')
+                }
+                r.append(np.linalg.norm(u) - value)
+            }
+            elif kind == 'Coincident'
+            {
+                r.extend(u)
+            }
+            else
+            {
+                v = p[ids[3]] - p[ids[2]]
+                nu = np.linalg.norm(u)
+                nv = np.linalg.norm(v)
+                if nu < 1e-08 or nv < 1e-08
+                {
+                    r.append(1000.0)
+                    continue
+                }
+                scale = min(nu, nv)
+                if kind == 'Parallel'
+                {
+                    r.append((u[0] * v[1] - u[1] * v[0]) / (nu * nv) * scale)
+                }
+                elif kind == 'Perpendicular'
+                {
+                    r.append(np.dot(u, v) / (nu * nv) * scale)
+                }
+                elif kind == 'Equal length'
+                {
+                    r.append(nu - nv)
+                }
+                elif kind == 'Angle'
+                {
+                    angle = np.arctan2(u[0] * v[1] - u[1] * v[0], np.dot(u, v)) - np.deg2rad(value)
+                    r.append(np.arctan2(np.sin(angle), np.cos(angle)) * scale)
+                }
+            }
+        }
+        return np.asarray(r, dtype=float)
+    }
+    if not constraints
+    {
+        return (initial.tolist(), {'dof': 2 * n, 'max_error': 0.0, 'redundant': 0})
+    }
+    result = least_squares(residual, initial.ravel(), method='trf', ftol=1e-12, xtol=1e-12, gtol=1e-12, max_nfev=2000)
+    error = float(np.max(np.abs(residual(result.x))))
+    if not np.isfinite(error) or error > tolerance
+    {
+        raise ValueError(f'Constraints conflict or cannot be solved (residual {error:.5g} mm). Remove or edit a constraint.')
+    }
+    rank = int(np.linalg.matrix_rank(result.jac, tol=1e-07))
+    return (result.x.reshape(n, 2).tolist(), {'dof': 2 * n - rank, 'max_error': error, 'redundant': max(0, len(result.fun) - rank)})
+
+}
+def validate_profile(points)
+{
+    p = np.asarray(points, dtype=float)
+    n = len(p)
+    if n < 3 or not np.all(np.isfinite(p))
+    {
+        raise ValueError('Sketch needs three finite vertices.')
+    }
+    if abs(np.sum(p[:, 0] * np.roll(p[:, 1], -1) - p[:, 1] * np.roll(p[:, 0], -1))) / 2 < 1e-06
+    {
+        raise ValueError('Sketch encloses no area.')
+
+    }
+    def orientation(a, b, c)
+    {
+        return float(np.cross(b - a, c - a))
+
+    }
+    def intersects(a, b, c, d)
+    {
+        v = [orientation(a, b, c), orientation(a, b, d), orientation(c, d, a), orientation(c, d, b)]
+        if v[0] * v[1] < -1e-12 and v[2] * v[3] < -1e-12
+        {
+            return True
+        }
+        for x, y, z, o in [(a, b, c, v[0]), (a, b, d, v[1]), (c, d, a, v[2]), (c, d, b, v[3])]
+        {
+            if abs(o) < 1e-08 and np.all(z >= np.minimum(x, y) - 1e-08) and np.all(z <= np.maximum(x, y) + 1e-08)
+            {
+                return True
+            }
+        }
+        return False
+    }
+    for i in range(n)
+    {
+        if np.linalg.norm(p[i] - p[(i + 1) % n]) < 1e-06
+        {
+            raise ValueError('Two adjacent sketch points coincide.')
+        }
+        for j in range(i + 1, n)
+        {
+            if j == i + 1 or (i == 0 and j == n - 1)
+            {
+                continue
+            }
+            if intersects(p[i], p[(i + 1) % n], p[j], p[(j + 1) % n])
+            {
+                raise ValueError('Sketch edges intersect. Draw a simple, closed outline.')
+            }
+        }
+    }
+}

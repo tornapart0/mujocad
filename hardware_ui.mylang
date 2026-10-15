@@ -1,0 +1,142 @@
+"""Accessible mechanical component and passive spring setup."""
+from copy import deepcopy
+from PySide6 import QtWidgets as W
+from physics_ui import dialog,number,commit
+from model import Part
+
+def unique(parts,stem)
+{
+    i=1
+    while any(p.name==stem+'_'+str(i) for p in parts)
+    {
+        i+=1
+    }
+    return stem+'_'+str(i)
+}
+
+def add_hardware(editor)
+{
+    window,form,_=dialog(editor,'Add mechanical component')
+    kind=W.QComboBox();kind.addItems(['M3 socket screw','M4 socket screw','Coil spring','Drone propeller + motor']);form.addRow('Component',kind)
+    parent=W.QComboBox();parent.addItem('World','')
+    for p in editor.parts
+    {
+        parent.addItem(p.name,p.name)
+    }
+    if editor.selected is not None and 0<=editor.selected<len(editor.parts)
+    {
+        parent.setCurrentIndex(editor.selected+1)
+    }
+    form.addRow('Mount on',parent)
+    length=number(form,'Screw / coil length · mm',12,2,200)
+    diameter=number(form,'Coil outer diameter · mm',10,2,100)
+    wire=number(form,'Coil wire diameter · mm',.7,.1,5)
+    prop_d=number(form,'Propeller diameter · mm',127,20,1000)
+    ct=number(form,'Static thrust coefficient CT · estimate',.10,.001,1)
+    cp=number(form,'Static power coefficient CP · estimate',.05,.001,1)
+    volts=number(form,'Motor supply · V',11.1,1,60)
+    kv=number(form,'Motor speed constant · rpm/V',2300,100,10000)
+    resistance=number(form,'Winding resistance · ohm',.15,.001,10)
+    amps=number(form,'ESC current limit · A',15,.1,200)
+    rpm=number(form,'Rotor maximum · rpm',20000,100,100000)
+    mass=number(form,'Motor + ESC mass · g',35,1,1000)
+    direction=W.QComboBox();direction.addItems(['Counterclockwise (+Z)','Clockwise (−Z)']);form.addRow('Rotor handedness',direction)
+    note=W.QLabel('Screws have nominal ISO-style socket-head dimensions and a plain shaft; threads are not modeled. Coil geometry adds steel mass; configure spring forces separately. Propellers include rotor inertia, a massed motor/ESC, electrical torque limits and RPM² thrust/drag torque. CT/CP are illustrative static coefficients: enter measured values for your propeller. Batteries must be added separately. Motor input is normalized voltage −1…1; clockwise rotors use negative input. No ground effect, forward-flight performance, thermal limits or blade flexibility is modeled.')
+    note.setWordWrap(True);form.addRow(note)
+    def fields()
+    {
+        coil=kind.currentIndex()==2;prop=kind.currentIndex()==3
+        for w in [length]
+        {
+            w.setEnabled(not prop)
+        }
+        for w in [diameter,wire]
+        {
+            w.setEnabled(coil)
+        }
+        for w in [prop_d,ct,cp,volts,kv,resistance,amps,rpm,mass,direction]
+        {
+            w.setEnabled(prop)
+        }
+    }
+    kind.currentIndexChanged.connect(fields);fields()
+    if window.exec()!=W.QDialog.Accepted
+    {
+        return
+    }
+    parts=deepcopy(editor.parts);mount=parent.currentData();index=kind.currentIndex()
+    name=unique(parts,['screw_M3','screw_M4','spring','propeller'][index])
+    p=Part(name,parent=mount,motor='None',collision='None',position=[0,0,20])
+    if index<2
+    {
+        d=3 if index==0 else 4;p.shape='Screw M'+str(d);p.size=[d,d,length.value()];p.density=7850;p.color=[.4,.42,.4,1]
+    }
+    elif index==2
+    {
+        p.shape='Spring';p.size=[diameter.value(),wire.value(),length.value()];p.density=7850;p.color=[.5,.53,.48,1]
+        if wire.value()>=diameter.value()/3 or length.value()<=8*wire.value()
+        {
+            editor.error('Increase coil diameter or length, or reduce wire diameter.');return
+        }
+    }
+    else
+    {
+        if not mount
+        {
+            editor.error('Select a body to mount the propeller motor on.');return
+        }
+        housing=Part(unique(parts,'propeller_motor'),parent=mount,shape='Cylinder',size=[28,28,18],position=[0,0,20],mass=mass.value()/1000,motor='None',collision='Convex hull',color=[.25,.3,.25,1])
+        parts.append(housing);p.parent=housing.name;p.position=[0,0,11]
+        p.shape='Propeller';p.size=[prop_d.value(),prop_d.value()*.10,1.2];p.density=1200
+        p.mirror_axes=[] if direction.currentIndex()==0 else [1]
+        p.joint='Hinge';p.axis='Z';p.unlimited=True;p.motor='Torque';p.torque=1;p.control=0;p.damping=0;p.armature=0
+        p.propeller={'ct':ct.value(),'cp':cp.value(),'voltage':volts.value(),'kv_rpm_v':kv.value(),'resistance_ohm':resistance.value(),'current_limit_a':amps.value(),'max_rpm':rpm.value(),'direction':1 if direction.currentIndex()==0 else -1,'calibration':'Illustrative static coefficients; replace with bench data','source':'https://m-selig.ae.illinois.edu/props/propDB.html'}
+    }
+    parts.append(p);commit(editor,parts,'Component added. Position it with Move; configure a passive spring using Rigging → Spring on selected joint.')
+}
+
+def edit_spring(editor)
+{
+    if editor.selected is None or not 0<=editor.selected<len(editor.parts)
+    {
+        editor.error('Select the moving part with a hinge or slide joint first.');return
+    }
+    p=editor.parts[editor.selected]
+    if p.joint not in ['Hinge','Slide']
+    {
+        editor.error('A joint spring needs a Hinge or Slide connection. For a routed spring between parts, use Tendons → Passive spring.');return
+    }
+    window,form,_=dialog(editor,'Passive spring · '+p.name)
+    units='Nm/rad' if p.joint=='Hinge' else 'N/m'
+    stiffness=number(form,'Stiffness · '+units,p.stiffness,0,100000)
+    rest=number(form,'Rest angle · degrees' if p.joint=='Hinge' else 'Rest displacement · mm',p.springref,-100000,100000)
+    damping=number(form,'Joint damping · Nms/rad' if p.joint=='Hinge' else 'Joint damping · Ns/m',p.damping,0,10000)
+    note=W.QLabel('The spring applies a restoring force toward its rest position. Zero stiffness disables it. This uses a native MuJoCo joint spring, including during training. A separate coil is visual geometry and adds mass; its dimensions do not calculate stiffness or strength.')
+    note.setWordWrap(True);form.addRow(note)
+    if window.exec()==W.QDialog.Accepted
+    {
+        parts=deepcopy(editor.parts);target=parts[editor.selected];target.stiffness=stiffness.value();target.springref=rest.value();target.damping=damping.value()
+        commit(editor,parts,'Passive spring applied.')
+    }
+}
+
+def edit_propeller(editor)
+{
+    if editor.selected is None or not 0<=editor.selected<len(editor.parts) or not editor.parts[editor.selected].propeller
+    {
+        editor.error('Select a propeller rotor first.');return
+    }
+    p=editor.parts[editor.selected];window,form,_=dialog(editor,'Propeller calibration · '+p.name);fields={}
+    for key,label in [('ct','Static thrust coefficient CT'),('cp','Static power coefficient CP'),('voltage','Motor supply · V'),('kv_rpm_v','Motor speed constant · rpm/V'),('resistance_ohm','Winding resistance · ohm'),('current_limit_a','ESC current limit · A'),('max_rpm','Maximum rotor speed · rpm')]
+    {
+        fields[key]=number(form,label,p.propeller[key],.0001,100000,5)
+    }
+    source=W.QLineEdit(p.propeller.get('source',''));form.addRow('Measurement / datasheet source',source)
+    note=W.QLabel('Use measured CT and CP for this diameter and operating RPM. Constant static coefficients do not predict forward flight or ground effect. Keep motor, ESC and battery mass in your design. Initial motor target is normalized supply voltage −1…1 in the Joint tab.')
+    note.setWordWrap(True);form.addRow(note)
+    if window.exec()==W.QDialog.Accepted
+    {
+        parts=deepcopy(editor.parts);c=parts[editor.selected].propeller;c.update({key:spin.value() for key,spin in fields.items()});c['source']=source.text().strip();c['calibration']='User-entered; verify measurement and operating range'
+        commit(editor,parts,'Propeller parameters saved.')
+    }
+}

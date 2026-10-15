@@ -36,6 +36,10 @@ def paste_parts(editor)
         payload = json.loads(bytes(mime.data(MIME)))
         assert payload['version'] == 1
         copied = [Part(**entry) for entry in payload['parts']]
+        for part in copied
+        {
+            part.scenario = {}
+        }
         worlds = payload['world']
         assert len(copied) == len(worlds) and copied
         names = {}
@@ -78,6 +82,7 @@ def paste_parts(editor)
                 set_world_matrix(p, m, [])
             }
         }
+        clone_tendons(copied, names, editor.parts)
         validate(editor.parts + copied)
         editor.remember()
         start = len(editor.parts)
@@ -213,4 +218,174 @@ def cut_hole(editor)
         editor.statusBar().showMessage('Through-hole cut • Edit Boolean operands to adjust it')
     }
     editor.run_job(lambda: editor.cad_worker.request('hole', target, tool, snapshot + [tool], 'Cut'), done, 'Cutting through-hole…')
+}
+
+def mirrored_parts(parts, rows, axis, offset=0.0)
+{
+    reflection = np.eye(3)
+    reflection[axis, axis] = -1
+    originals = [parts[i] for i in rows]
+    if any(p.closure or p.joint == 'Ball' for p in originals)
+    {
+        raise ValueError('Mirror currently supports fixed, free, hinge and slide parts without loop closures.')
+    }
+    copies = deepcopy(originals)
+    for part in copies
+    {
+        part.scenario = {}
+    }
+    names = {}
+    used = {p.name for p in parts}
+    for p in copies
+    {
+        old = p.name
+        n = 1
+        while f'{old}_mirror_{n}' in used
+        {
+            n += 1
+        }
+        names[old] = f'{old}_mirror_{n}'
+        used.add(names[old])
+    }
+    targets = {}
+    for source, copy in zip(originals, copies)
+    {
+        matrix = world_matrix(source, parts)
+        matrix[:3, :3] = reflection @ matrix[:3, :3] @ reflection
+        matrix[:3, 3] = reflection @ matrix[:3, 3]
+        matrix[axis, 3] += 2 * offset
+        targets[names[source.name]] = matrix
+        copy.name = names[source.name]
+        copy.parent = names.get(source.parent, source.parent)
+        copy.mirror_axes = list(copy.mirror_axes)
+        if axis in copy.mirror_axes
+        {
+            copy.mirror_axes.remove(axis)
+        }
+        else
+        {
+            copy.mirror_axes.append(axis)
+        }
+        copy.pivot = (reflection @ np.asarray(copy.pivot)).tolist()
+        if copy.joint in ['Hinge', 'Slide']
+        {
+            sign = reflection['XYZ'.index(copy.axis), 'XYZ'.index(copy.axis)]
+            if copy.joint == 'Hinge'
+            {
+                sign = -sign
+            }
+            if sign < 0
+            {
+                copy.limits = [-copy.limits[1], -copy.limits[0]]
+                copy.control = -copy.control
+                if copy.aero
+                {
+                    copy.aero['amplitude_deg'] = -copy.aero['amplitude_deg']
+                }
+            }
+        }
+    }
+    pending = list(copies)
+    placed = list(parts)
+    while pending
+    {
+        ready = [p for p in pending if p.parent not in {q.name for q in pending}]
+        if not ready
+        {
+            raise ValueError('Cannot mirror cyclic parent relationships.')
+        }
+        for copy in ready
+        {
+            set_world_matrix(copy, targets[copy.name], placed)
+            placed.append(copy)
+            pending.remove(copy)
+        }
+    }
+    clone_tendons(copies, names, parts, reflection)
+    validate(parts + copies)
+    return copies
+}
+def mirror_parts(editor)
+{
+    rows = editor.selected_rows()
+    if not rows
+    {
+        editor.error('Select one or more parts to mirror.')
+        return
+    }
+    plane, ok = W.QInputDialog.getItem(editor, 'Mirror selected parts', 'World mirror plane', ['YZ · reflect X', 'XZ · reflect Y', 'XY · reflect Z'], 0, False)
+    if not ok
+    {
+        return
+    }
+    axis = ['YZ · reflect X', 'XZ · reflect Y', 'XY · reflect Z'].index(plane)
+    offset, ok = W.QInputDialog.getDouble(editor, 'Mirror plane location', f'World {"XYZ"[axis]} coordinate · mm', 0, -100000, 100000, 2)
+    if not ok
+    {
+        return
+    }
+    try
+    {
+        copies = mirrored_parts(editor.parts, rows, axis, offset)
+        editor.remember()
+        start = len(editor.parts)
+        editor.parts.extend(copies)
+        editor.selected = start
+        editor.refresh()
+        editor.list.clearSelection()
+        for i in range(start, len(editor.parts))
+        {
+            editor.list.item(i).setSelected(True)
+        }
+        editor.statusBar().showMessage('Created mirrored copies · original parts kept · Undo restores the design')
+    }
+    except Exception as error
+    {
+        editor.error(str(error))
+    }
+}
+
+def snapped_move(matrix, axis, delta, spacing)
+{
+    if spacing <= 0
+    {
+        raise ValueError('Grid spacing must be positive.')
+    }
+    result = matrix.copy()
+    result[axis, 3] = round((result[axis, 3] + delta) / spacing) * spacing
+    return result
+}
+
+def clone_tendons(copies, names, existing, reflection=None)
+{
+    used = {t['name'] for p in existing for t in p.tendons}
+    for part in copies
+    {
+        cables = []
+        for cable in part.tendons
+        {
+            if not all(point['body'] in names for point in cable['points'])
+            {
+                continue
+            }
+            old = cable['name']
+            index = 1
+            while f'{old}_copy_{index}' in used
+            {
+                index += 1
+            }
+            cable['name'] = f'{old}_copy_{index}'
+            used.add(cable['name'])
+            for point in cable['points']
+            {
+                point['body'] = names[point['body']]
+                if reflection is not None
+                {
+                    point['position'] = (reflection @ np.asarray(point['position'])).tolist()
+                }
+            }
+            cables.append(cable)
+        }
+        part.tendons = cables
+    }
 }

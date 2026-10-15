@@ -1,0 +1,30 @@
+"""Use the running packaged Python first, then explicitly installed training environments."""
+import sys,importlib.util
+from pathlib import Path
+
+def simulator_runtime()
+{
+    candidate=Path(sys.executable).with_name('mjpython')
+    if candidate.exists()
+    {
+        return candidate
+    }
+    raise ValueError('MuJoCo viewer launcher mjpython is missing from this Python installation.')
+}
+
+def training_runtime(root,watch=False)
+{
+    if importlib.util.find_spec('stable_baselines3') is not None
+    {
+        return simulator_runtime() if watch else Path(sys.executable)
+    }
+    name='mjpython' if watch else 'python'
+    for candidate in [root/'.venv/bin'/name,root.parent/'IsaacLab-mlx-codex-mlx-foundation/.venv/bin'/name]
+    {
+        if candidate.exists() and list((candidate.parent.parent/'lib').glob('python*/site-packages/stable_baselines3'))
+        {
+            return candidate
+        }
+    }
+    raise ValueError('Training runtime is missing. Install requirements-training.txt into the CAD virtual environment.')
+}

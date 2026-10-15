@@ -1,0 +1,53 @@
+"""Feather-axis placement and wing-root clearance prototypes, with real torque-tube mass."""
+from pathlib import Path
+from copy import deepcopy
+import json,itertools
+from model import Part,load_project,export_model,save_project
+from ornithopter_gait_search import FixtureGait
+from prototype_validation import validate
+
+def main()
+{
+    out=Path('outputs/Prototype-Axis')
+    out.mkdir(parents=True,exist_ok=True)
+    values=json.loads(Path('outputs/Prototype-Feather90/gait-results.json').read_text())['best']['parameters']
+    reports=[]
+    for index,(axis_y,gap) in enumerate(itertools.product([70,110,150],[24,60]))
+    {
+        parts=load_project('outputs/Overnight-Morphology/9/candidate.mjcad')
+        for p in list(parts)
+        {
+            if p.name.endswith('_wing_hinge')
+            {
+                p.position[0]=gap*(1 if p.name.startswith('right') else -1)
+                p.aero.update(flap_hz=values[0],amplitude_deg=values[1]*(1 if p.name.startswith('right') else -1),downstroke_duty=values[2])
+            }
+            elif p.name.endswith('_wing_pitch')
+            {
+                p.pivot[1]=axis_y
+                p.limits=[-90,0]
+                p.aero.update(flap_hz=values[0],amplitude_deg=-values[3],phase_deg=values[4],downstroke_duty=values[2])
+                span=max(abs(c.position[0])+c.size[0]/2 for c in parts if c.parent==p.name and c.shape=='Sketch')
+                sign=1 if p.name.startswith('right') else -1
+                parts.append(Part(name=p.name+'_carbon_torque_tube',parent=p.name,shape='Cylinder',size=[1.5,1.5,span],position=[sign*span/2,axis_y,0],rotation=[0,90,0],density=1330,motor='None',collision='Auto',material={'note':'Solid carbon/epoxy torque tube; torsional deflection/strength not validated.'}))
+            }
+        }
+        folder=out/str(index)
+        folder.mkdir(parents=True,exist_ok=True)
+        save_project(folder/'candidate.mjcad',parts)
+        fixture=deepcopy(parts)
+        next(p for p in fixture if p.name=='fuselage_balsa_keel').joint='Fixed'
+        export_model(folder/'fixture',fixture)
+        score,report=FixtureGait(folder/'fixture').score(values)
+        report.update(axis_y_mm=axis_y,root_half_spacing_mm=gap,folder=str(folder))
+        export_model(folder/'free-body',parts)
+        report['free_body']=validate(folder/'free-body',values)
+        reports.append(report)
+        (out/'results.json').write_text(json.dumps(reports,indent=2))
+        print(json.dumps(report),flush=True)
+    }
+}
+if __name__=='__main__'
+{
+    main()
+}

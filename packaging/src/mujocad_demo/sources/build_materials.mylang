@@ -1,0 +1,12 @@
+"""Representative density presets; rigid-body mass/inertia only, not structural FEA."""
+PRESETS={
+ 'PLA · representative':{'density':1240,'source':'https://polymaker.com/wp-content/tech-docs/PolyLite_PLA_PIS_EN_V1.1.pdf','note':'Representative solid density; formulation varies.'},
+ 'PETG · representative':{'density':1270,'source':'https://pmc.ncbi.nlm.nih.gov/articles/PMC13516365/','note':'Representative solid density; formulation varies.'},
+ 'ABS · representative':{'density':1050,'source':'https://pmc.ncbi.nlm.nih.gov/articles/PMC13516365/','note':'Representative solid density; formulation varies.'},
+ 'Aluminum 6061 · representative':{'density':2700,'source':'https://asia.matweb.com/search/SpecificMaterialPrint.asp?bassnum=ma6061at6','note':'Representative bulk alloy density.'},
+ 'Steel · representative':{'density':7850,'source':'Engineering default; enter your alloy supplier value.','note':'Illustrative typical carbon-steel density; exact alloy not specified.'},
+ 'Balsa · nominal 155 kg/m³':{'density':155,'source':'https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf','note':'Nominal grade; wood density, moisture and grain vary.'},
+ 'Carbon/epoxy sheet · representative':{'density':1330,'source':'https://www.easycomposites.co.uk/high-strength-carbon-fibre-sheet','note':'Product-specific density; other fibre layups and resins differ.'}
+}
+
+PRESETS['PET sail film · 25 µm design'] = {'density': 1390, 'source': 'https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf', 'note': '25 µm design choice: 34.75 g/m². Rigid film proxy; no membrane deformation or tear simulation.'}

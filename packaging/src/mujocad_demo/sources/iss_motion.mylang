@@ -1,0 +1,55 @@
+"""Scripted motor-driven pushing demo for the imported ISS robot."""
+import numpy as np
+import mujoco
+from scipy.optimize import least_squares
+
+class BlockPushMotion
+{
+    def __init__(self, model, config)
+    {
+        self.model=model
+        self.config=config
+        scratch=mujoco.MjData(model)
+        mujoco.mj_forward(model,scratch)
+        self.frames=[]
+        self.times=np.linspace(0,14,71)
+        controls=np.zeros((len(self.times),model.nu))
+        self.paths=[]
+        for quadrant in ['left_front','right_front','left_rear']
+        {
+            chain=config['chains'][quadrant]
+            joints=[model.joint(name+'_joint').qposadr[0] for name in chain]
+            motors=[model.actuator(name+'_motor').id for name in chain]
+            tip=model.body(chain[-1]).id
+            start=scratch.xpos[tip,:2].copy()
+            direction=start/np.linalg.norm(start)
+            previous=np.zeros(len(chain))
+            errors=[]
+            for k,time in enumerate(self.times)
+            {
+                fraction=np.clip((time-1)/11,0,1)
+                target=start+direction*config['push_distance_m']*fraction
+                def residual(angles)
+                {
+                    scratch.qpos[joints]=angles
+                    mujoco.mj_forward(model,scratch)
+                    return np.r_[scratch.xpos[tip,:2]-target,.0003*(angles-previous)]
+                }
+                solution=least_squares(residual,previous,bounds=(-2.08,2.08),max_nfev=100,ftol=1e-9,xtol=1e-9,gtol=1e-9)
+                previous=solution.x
+                scratch.qpos[joints]=previous
+                mujoco.mj_forward(model,scratch)
+                errors.append(float(np.linalg.norm(scratch.xpos[tip,:2]-target)))
+                controls[k,motors]=previous
+            }
+            self.paths.append({'arm':quadrant,'max_error_m':max(errors)})
+            scratch.qpos[joints]=0
+            mujoco.mj_forward(model,scratch)
+        }
+        self.controls=controls
+    }
+    def apply(self,data)
+    {
+        data.ctrl[:]=[np.interp(data.time,self.times,self.controls[:,i]) for i in range(self.model.nu)]
+    }
+}

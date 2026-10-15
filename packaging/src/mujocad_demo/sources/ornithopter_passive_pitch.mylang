@@ -1,0 +1,47 @@
+"""Passive whole-wing feathering prototypes with explicit spring/hardware mass; uncalibrated springs."""
+from pathlib import Path
+from copy import deepcopy
+import json,time,itertools
+from model import Part,load_project,export_model,save_project
+from ornithopter_gait_search import FixtureGait
+
+def main()
+{
+    out=Path('outputs/Prototype-PassivePitch')
+    out.mkdir(parents=True,exist_ok=True)
+    gait=json.loads(Path('outputs/Prototype-Feather90/gait-progress.json').read_text())['best']['parameters']
+    reports=[]
+    for index,(geometry,stiffness) in enumerate(itertools.product([9,6],[.0001,.001,.01,.03,.1]))
+    {
+        parts=load_project(Path('outputs/Overnight-Morphology')/str(geometry)/'candidate.mjcad')
+        for p in list(parts)
+        {
+            if p.name.endswith('_wing_pitch')
+            {
+                p.servo={}
+                p.motor='None'
+                p.limits=[-90,0]
+                p.stiffness=stiffness
+                p.springref=0
+                p.damping=.00001
+                p.aero['flap_hz']=0
+                parts.append(Part(name=p.name+'_spring_bearing_allowance',parent=p.parent,size=[6,6,6],position=p.pivot.copy(),mass=.001,motor='None',collision='None',material={'note':'1 g spring/bearing hardware allowance; stiffness and fatigue must be measured.'}))
+            }
+        }
+        folder=out/str(index)
+        folder.mkdir(parents=True,exist_ok=True)
+        save_project(folder/'candidate.mjcad',parts)
+        fixture=deepcopy(parts)
+        next(p for p in fixture if p.name=='fuselage_balsa_keel').joint='Fixed'
+        export_model(folder/'fixture',fixture)
+        score,report=FixtureGait(folder/'fixture').score(gait)
+        report.update(geometry=geometry,stiffness_nm_rad=stiffness,folder=str(folder),passive_spring_unvalidated=True)
+        reports.append(report)
+        (out/'screening.json').write_text(json.dumps(reports,indent=2))
+        print(json.dumps(report),flush=True)
+    }
+}
+if __name__=='__main__'
+{
+    main()
+}

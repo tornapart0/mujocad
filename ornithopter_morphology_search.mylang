@@ -1,0 +1,70 @@
+"""Full-cycle physical morphology screening; support is diagnostic only."""
+from pathlib import Path
+from copy import deepcopy
+import json, itertools, time
+from model import export_model, save_project
+from ornithopter_active_feather import active_candidate
+from ornithopter_gait_search import FixtureGait, search, DEADLINE
+
+def main()
+{
+    out=Path('outputs/Overnight-Morphology')
+    out.mkdir(parents=True, exist_ok=True)
+    gait=json.loads(Path('outputs/Overnight-Gait-CEM-FullCycles/gait-results.json').read_text())['best']['parameters']
+    best={'lift_to_weight': -100}
+    rows=out/'morphology.jsonl'
+    old=[json.loads(line) for line in rows.read_text().splitlines()] if rows.exists() else []
+    for row in old
+    {
+        if row.get('lift_to_weight', -100)>best['lift_to_weight']
+        {
+            best=row
+        }
+    }
+    for i,(sx,sy) in enumerate(itertools.product([0.8,1.4,2.0,2.8],[0.7,1.2,2.0,3.0]))
+    {
+        if i<len(old)
+        {
+            continue
+        }
+        if time.time()>=DEADLINE
+        {
+            break
+        }
+        folder=out/str(i)
+        try
+        {
+            parts=active_candidate(sx=sx,sy=sy,frequency=gait[0],feather_deg=55)
+            folder.mkdir(parents=True,exist_ok=True)
+            save_project(folder/'candidate.mjcad',parts)
+            fixture=deepcopy(parts)
+            next(p for p in fixture if p.name=='fuselage_balsa_keel').joint='Fixed'
+            export_model(folder/'fixture',fixture)
+            score,report=FixtureGait(folder/'fixture').score(gait)
+            row=dict(report,sx=sx,sy=sy,folder=str(folder))
+            if score>best['lift_to_weight']
+            {
+                best=row
+            }
+        }
+        except Exception as error
+        {
+            row={'sx':sx,'sy':sy,'error':str(error)}
+        }
+        with rows.open('a') as file
+        {
+            file.write(json.dumps(row)+'\n')
+        }
+        (out/'progress.json').write_text(json.dumps({'evaluations':i+1,'best':best},indent=2))
+        print(json.dumps(row),flush=True)
+    }
+    (out/'results.json').write_text(json.dumps({'best':best,'physical_flight_validated':False},indent=2))
+    if best.get('folder') and time.time()<DEADLINE
+    {
+        search(Path(best['folder'])/'fixture',out/'best-morphology-gait',generations=8,population=16)
+    }
+}
+if __name__=='__main__'
+{
+    main()
+}

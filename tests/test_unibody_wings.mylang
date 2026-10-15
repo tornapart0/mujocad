@@ -1,0 +1,40 @@
+"""Continuous wing topology, physical actuator envelope and honest ground-start checks."""
+from pathlib import Path
+import json,sys
+import numpy as np,mujoco
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from ground_flight_training import GroundFlightTask
+
+folder=Path(__file__).resolve().parents[2]/'Compact-Unibody-Ground-600'
+parts=json.loads((folder/'CompactCrank.mjcad').read_text())['parts']
+assert json.loads((folder/'connectivity.json').read_text())['disconnected']==[]
+assert json.loads((folder/'swept-clearance.json').read_text())['passed']
+for label in ['left','right']
+{
+    skin=next(p for p in parts if p['name']==label+'_unibody_membrane')
+    carrier=next(p for p in parts if p['name']==label+'_passive_wing')
+    assert skin['joint']=='Fixed' and carrier['joint']=='Fixed'
+    assert not any(p['name'].startswith(label+'_outer_flex') for p in parts)
+    assert skin['aero']['upstroke_ratio']==1 and skin['aero']['area_source']=='geometry'
+    assert sum(p['name']==label+'_unibody_membrane' for p in parts)==1
+}
+env=GroundFlightTask(folder/'bench-task.json')
+for seed in [101,202,303]
+{
+    obs,info=env.reset(seed=seed)
+    assert info['ground_start'] and np.all(env.data.qvel==0)
+    assert np.allclose(env.model.opt.gravity,[0,0,-9.81])
+    assert env.model.nu==4 and env.model.neq==3
+    assert env.incidence_limit==60 and env.ground_incidence==60
+    for i in range(75)
+    {
+        obs,reward,done,timeout,info=env.step(np.array([0.,(-1.)**int(i/15),(-1.)**int(i/15),0.]))
+        assert np.isfinite(obs).all() and not info['is_success']
+        assert np.max(np.abs(env.data.efc_pos[:9]))<.0005
+        if done or timeout
+        {
+            break
+        }
+    }
+}
+print('PASS: continuous fixed wings, no outer joints, connected CAD, swept ground clearance, 120-degree feather travel, zero-velocity floor starts and finite physical dynamics; no flight claim.')

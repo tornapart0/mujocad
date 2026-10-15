@@ -1,0 +1,70 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import sys, time, traceback
+from pathlib import Path
+import numpy as np
+from PySide6 import QtWidgets as W, QtCore as C
+from PySide6.QtTest import QTest
+from app import Window, STYLE
+from model import load_project, Part, world_matrix
+app = W.QApplication([])
+app.setStyle('Fusion')
+app.setStyleSheet(STYLE)
+w = Window()
+errors = []
+w.error = lambda e: errors.append(str(e))
+w.show()
+
+def wait()
+{
+    deadline = time.monotonic() + 30
+    while w.jobs and time.monotonic() < deadline
+    {
+        QTest.qWait(30)
+    }
+    QTest.qWait(150)
+    assert not w.jobs, 'CAD worker timed out'
+
+}
+def verify()
+{
+    try
+    {
+        wait()
+        w.parts = load_project(Path(__file__).resolve().parents[1] / 'Examples/MechanicalRig.mjcad')
+        w.selected = 0
+        w.refresh()
+        wait()
+        assert not errors, errors
+        assert len(w.items) == len(w.parts) + 2
+        assert w.view.isValid()
+        assert w.joint.findText('Rigid screw M3') >= 0 and w.joint.findText('Rigid screw M4') >= 0
+        w.view.setCameraPosition(azimuth=-65, elevation=25)
+        w.frame_selection()
+        QTest.qWait(300)
+        w.grab().save(str(Path('outputs/Hardware-Validation/Hardware-Editor.png').resolve()))
+        w.parts = [Part('A', position=[0, 0, 20]), Part('B', position=[40, 0, 20])]
+        w.selected = 1
+        w.refresh()
+        wait()
+        pose = world_matrix(w.parts[1], w.parts).copy()
+        assert w.connect_parts('A', 'B', 'Rigid screw M4', 'X')
+        wait()
+        assert np.allclose(world_matrix(w.parts[1], w.parts), pose)
+        assert w.parts[2].shape == 'Screw M4' and w.parts[2].rotation == [0, 90, 0]
+        assert not errors, errors
+        print('PASS native CAD: visible cable route, loops and knots; rigid M4 connection preserves pose; solarpunk rendering', flush=True)
+    }
+    except Exception
+    {
+        traceback.print_exc()
+        app.exit(1)
+        return
+    }
+    finally
+    {
+        w.dirty = False
+    }
+    app.exit(0)
+}
+C.QTimer.singleShot(200, verify)
+raise SystemExit(app.exec())

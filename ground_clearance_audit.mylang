@@ -1,0 +1,103 @@
+"""Analytical loop-closure pose sweep for geometry ONLY; never a flight simulation."""
+from pathlib import Path
+import json,math,itertools
+import numpy as np,mujoco
+from scipy.optimize import brentq
+
+def run(folder)
+{
+    folder=Path(folder)
+    m=mujoco.MjModel.from_xml_path(str(folder/'robot.xml'))
+    d=mujoco.MjData(m)
+    scenario=json.loads((folder/'scenario.json').read_text())
+    trim_limit=float(scenario.get('ground_incidence_limit_deg',8))
+    has_flex=mujoco.mj_name2id(m,mujoco.mjtObj.mjOBJ_JOINT,'right_outer_flex_joint')>=0
+    def setq(name,value)
+    {
+        d.qpos[m.joint(name+'_joint').qposadr[0]]=value
+    }
+    visuals=[]
+    for g in range(m.ngeom)
+    {
+        name=m.geom(g).name
+        if name.endswith('_visual') and '_ground_pad_' not in name
+        {
+            mesh=m.geom_dataid[g]
+            vertices=m.mesh_vert[m.mesh_vertadr[mesh]:m.mesh_vertadr[mesh]+m.mesh_vertnum[mesh]]
+            wing=any(s in name for s in ['membrane','spar','rib','passive_wing','outer_flex']) and not name.startswith('tail')
+            visuals.append((g,vertices,wing))
+        }
+    }
+    minimum=math.inf
+    minimum_wing=math.inf
+    max_error=0.
+    minimum_part=None
+    collisions=[]
+    count=0
+    for theta in np.linspace(0,2*math.pi,49)
+    {
+        pin_x=6*math.cos(theta)
+        pin_z=-40-6*math.sin(theta)
+        slider=pin_z+math.sqrt(520-pin_x**2)
+        phi=brentq(lambda q:(25-15*math.cos(q))**2+(15*math.sin(q)-slider)**2-424,-math.radians(40),math.radians(40))
+        rocker_x=25-15*math.cos(phi)
+        rocker_z=15*math.sin(phi)
+        trims=np.linspace(-trim_limit,trim_limit,9)
+        pairs=[(t,t) for t in trims] if has_flex else list(itertools.product(trims,trims))
+        for trim_pair,twist,flex in itertools.product(pairs,[-8.,8.] if has_flex else [0.],[-20.,20.] if has_flex else [0.])
+        {
+            mujoco.mj_resetData(m,d)
+            setq('drive_crank',theta)
+            setq('guided_slider',(slider+18)*.001)
+            setq('crank_connecting_rod',math.atan2(-pin_x,slider-pin_z)-theta-math.atan2(-6,22))
+            for sign,label in [(1,'right'),(-1,'left')]
+            {
+                setq(label+'_wing_rocker',sign*phi)
+                setq(label+'_pushrod',math.atan2(sign*rocker_x,rocker_z-slider)-math.atan2(sign*10,18))
+                setq(label+'_incidence',math.radians(trim_pair[0] if label=='right' else trim_pair[1]))
+                if has_flex
+                {
+                    setq(label+'_passive_wing',math.radians(twist))
+                    setq(label+'_outer_flex',sign*math.radians(flex))
+                }
+            }
+            mujoco.mj_forward(m,d)
+            max_error=max(max_error,float(np.max(np.abs(d.efc_pos[:9]))))
+            for g,vertices,wing in visuals
+            {
+                z=float(np.min(vertices@d.geom_xmat[g].reshape(3,3)[2,:]+d.geom_xpos[g,2]))
+                if z<minimum
+                {
+                    minimum=z
+                    minimum_part=m.geom(g).name
+                }
+                if wing
+                {
+                    minimum_wing=min(minimum_wing,z)
+                }
+            }
+            for contact in d.contact
+            {
+                names=[m.geom(contact.geom1).name,m.geom(contact.geom2).name]
+                if contact.dist<-.000001 and not ('floor' in names and any('_ground_pad_' in n for n in names))
+                {
+                    pair=sorted(names)
+                    if pair not in collisions
+                    {
+                        collisions.append(pair)
+                    }
+                }
+            }
+            count+=1
+        }
+    }
+    report={'audit_type':'Sampled kinematic geometry audit only: analytically closed loops, no powered-flight inference. Continuous wings test independent left/right trim combinations; legacy articulated wings use matched trim and flex extremes. Sampling is not a proof of every intermediate pose.','poses':count,'minimum_nonfoot_height_m':minimum,'minimum_part':minimum_part,'minimum_wing_height_m':minimum_wing,'maximum_loop_error_m':max_error,'unexpected_contact_pairs':collisions,'passed':minimum>0 and minimum_wing>0 and max_error<1e-7 and not collisions}
+    (folder/'swept-clearance.json').write_text(json.dumps(report,indent=2))
+    print(json.dumps(report,indent=2))
+    return report
+}
+if __name__=='__main__'
+{
+    import sys
+    run(sys.argv[1])
+}

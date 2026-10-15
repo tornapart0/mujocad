@@ -1,0 +1,151 @@
+"""Purdue Flappy reference recreation and a mass-accounted continuous-wing vulture.
+Source models/identified parameters: MIT licensed Purdue Flappy, pinned commit in provenance.
+Reference recreation uses external electrical power; the vulture adds onboard supply allowances.
+"""
+from pathlib import Path
+from dataclasses import asdict
+from copy import deepcopy
+import hashlib,json,math,shutil
+import xml.etree.ElementTree as E
+import numpy as np,trimesh
+from model import Part,save_project,export_model,geometry_key
+from connected_ornithopter import rod
+ROOT=Path(__file__).resolve().parent
+REFERENCE=ROOT.parents[1]/'work/flappy-reference'
+SOURCE='https://github.com/purdue-biorobotics/flappy/tree/80399e1b773d15c125bd9f1dc7b416e8a7a18398'
+
+def wing_parameters(points,base)
+{
+    # Integrate the ACTUAL continuous outline; never retain hummingbird area on a changed wing.
+    points=np.asarray(points,float)*.001
+    length=float(points[:,1].max())
+    edges=list(zip(points,np.roll(points,-1,axis=0)))
+    span=(np.arange(4000)+.5)*length/4000
+    chord=[]
+    for r in span
+    {
+        hits=[a[0]+(r-a[1])*(b[0]-a[0])/(b[1]-a[1]) for a,b in edges if min(a[1],b[1])<=r<max(a[1],b[1])]
+        chord.append(max(hits)-min(hits) if len(hits)>=2 else 0.)
+    }
+    chord=np.asarray(chord)
+    mean=float(chord.mean())
+    result=deepcopy(base)
+    result.update(wing_length=length,mean_chord=mean)
+    for n,key in enumerate(['r00','r11','r22','r33'])
+    {
+        result[key]=float(np.mean((span/length)**n*chord/mean))
+    }
+    for n,key in enumerate(['z_cp0','z_cp1','z_cp2'])
+    {
+        result[key]=float(np.mean((span/length)**n*(chord/mean)**2))
+    }
+    result['z_rd']=float(np.mean((chord/mean)**4))
+    return result
+}
+
+def build(folder,vulture=False)
+{
+    folder=Path(folder).resolve()
+    folder.mkdir(parents=True,exist_ok=True)
+    assets=folder/'source-meshes'
+    assets.mkdir(exist_ok=True)
+    config=json.loads((REFERENCE/'flappy/envs/fwmav/config/mav_config_list.json').read_text())[0]
+    text=(REFERENCE/'flappy/urdf/fwmav/flapper_sc_nominal.urdf').read_text().replace('<?xml version="1.0"?>','')
+    robot=E.fromstring(text)
+    links={e.get('name'):e for e in robot.findall('link')}
+    height=17.8 if vulture else 15.139900147914886
+    parts=[]
+    def imported(name,link,parent='',position=None,joint='Fixed',axis='Z')
+    {
+        original=links[link]
+        filename=original.find('visual/geometry/mesh').get('filename').split('/')[-1]
+        if vulture and name=='torso'
+        {
+            filename='torso_no_base.STL'
+        }
+        target=assets/filename
+        shutil.copyfile(REFERENCE/'flappy/urdf/fwmav/meshes'/filename,target)
+        mesh=trimesh.load_mesh(target)
+        inertia=original.find('inertial')
+        mass=float(inertia.find('mass').get('value'))
+        p=Part(name=name,shape='Mesh',mesh_file=str(target),size=(mesh.extents*1000).tolist(),mass=mass,parent=parent,position=position or [0,0,0],joint=joint,axis=axis,motor='None',collision='Convex hull',color=[.19,.23,.18,1],damping=0,armature=0)
+        values=inertia.find('inertia').attrib
+        tensor=[[float(values['ixx']),float(values['ixy']),float(values['ixz'])],[float(values['ixy']),float(values['iyy']),float(values['iyz'])],[float(values['ixz']),float(values['iyz']),float(values['izz'])]]
+        p.material={'inertial_reference':{'geometry_sha256':hashlib.sha256(geometry_key(p).encode()).hexdigest(),'center_m':[float(v) for v in inertia.find('origin').get('xyz').split()],'tensor_kg_m2':tensor,'source':SOURCE,'note':'Published identified aggregate inertia; not inferred from display mesh. Body contains reference mechanism/motors; onboard power and decoration added separately.'}}
+        parts.append(p)
+        return p
+    }
+    root=imported('torso','torso',position=[0,0,height],joint='Free')
+    root.environment={'preset':'Earth','gravity':[0,0,-9.81],'density':1.18009482370369,'viscosity':.000018,'wind':[0,0,0],'ground':True,'timestep':.0001}
+    root.scenario={'kind':'FlappyVulture','root':'torso','parameters':config,'source':SOURCE,'reference_only':not vulture,'target_height_m':.2,'frequency_hz':34,'flight_validated':False,'physical_flight_validated':False,'onboard_power':vulture,'battery':{'mass_g':6,'voltage_nominal':3.7,'capacity_mah':220,'current_limit_a':5,'converter_efficiency':.8,'converter_output_voltage':18,'converter_output_power_w':14,'status':'Provisional high-rate 1S pack and custom converter; loaded supply and thermal validation required.'}}
+    # Keep an exact author-reference outline for the benchmark. Vulture changes are reintegrated.
+    outline=[[0,0],[0,70],[9,70],[12,64],[19,69],[18,60],[25,64],[22,53],[30,55],[27,43],[33,42],[29,30],[31,18],[26,0]]
+    params=wing_parameters(outline,config) if vulture else config
+    for index,label in enumerate(['left','right'])
+    {
+        sign=1 if index==0 else -1
+        stroke=imported(label+'_stroke',label+'_leading_edge',parent='torso',position=[0,sign*13.95,18.9913],joint='Hinge')
+        stroke.limits=np.degrees([-1.63,1.63]).tolist()
+        stroke.motor='Torque'
+        stroke.torque=.03
+        stroke.stiffness=config[label+'_spring_stiffness']
+        stroke.damping=8e-9
+        stroke.frictionloss=1e-9
+        motor=config[label+'_motor_properties']
+        stroke.armature=motor['inertia']*motor['gear_ratio']**2*motor['mechanical_efficiency']
+        if vulture
+        {
+            # One continuous outline per wing; X normal, Y span, -Z chord. No outer joint.
+            span=70
+            chord=max(p[0] for p in outline)
+            points=[[c,sign*r] for c,r in outline]
+            wing=Part(name=label+'_wing',shape='Sketch',sketch_plane='YZ',sketch=points,size=[chord,span,.025],position=[0,sign*span/2,-chord/2],pivot=[0,-sign*span/2,chord/2],parent=stroke.name,joint='Hinge',axis='Y',limits=np.degrees([-.7854,.7854]).tolist(),motor='None',damping=1e-9,frictionloss=1e-8,armature=0,density=1390,collision='Convex hull',color=[.28,.24,.16,1])
+            parts.append(wing)
+        }
+        else
+        {
+            wing=imported(label+'_wing',label+'_wing',parent=stroke.name,joint='Hinge',axis='Y')
+            wing.limits=np.degrees([-.7854,.7854]).tolist()
+            wing.damping=1e-9
+            wing.frictionloss=1e-8
+        }
+        wing.aero={'model':'flappy2019','wing_index':index,'root':'torso','stroke':stroke.name,'reference_parameters':params,'origin_m':(np.asarray(wing.pivot)*.001).tolist(),'axis':'X','area_m2':params['wing_length']*params['mean_chord'],'normal_coefficient':1.,'upstroke_ratio':1.,'flap_hz':0.,'amplitude_deg':0.,'phase_deg':0.,'waveform':'Sine'}
+    }
+    if vulture
+    {
+        # Add full onboard supply and flight electronics; reference 12g aircraft was power-tethered.
+        for name,size,pos,mass in [('battery_1S_220mAh_allowance',[45,12,6],[0,0,-5],.006),('boost_converter_H_bridges_allowance',[16,12,3],[-2,0,2],.002),('IMU_receiver_controller_allowance',[12,10,2],[7,0,5],.001),('wires_mounts_adhesive_allowance',[10,10,2],[0,0,-10],.0005)]
+        {
+            parts.append(Part(name=name,size=size,position=pos,parent='torso',mass=mass,motor='None',color=[.18,.29,.21,1],collision='None'))
+        }
+        outer=Part('outer',shape='Ellipsoid',size=[50,25,40])
+        inner=Part('inner',shape='Ellipsoid',size=[48,23,38])
+        parts.append(Part('vulture_hunched_shell',shape='Boolean',boolean={'operation':'Cut','left':asdict(outer),'right':asdict(inner)},size=[50,25,40],position=[3,0,3],parent='torso',density=50,motor='None',collision='Convex hull',color=[.22,.19,.13,1]))
+        parts.append(rod('bare_neck',[19,0,11],[31,0,20],5,'torso',50))
+        parts[-1].color=[.60,.29,.24,1]
+        parts.append(Part('vulture_head',shape='Ellipsoid',size=[11,8,10],position=[34,0,21],parent='torso',density=50,motor='None',collision='Convex hull',color=[.64,.32,.26,1]))
+        parts.append(Part('hooked_beak',shape='Sketch',size=[9,7,.6],sketch=[[0,0],[8,1],[9,5],[6,7],[7,3],[0,3]],rotation=[90,0,0],position=[41,0,20],parent='torso',density=1200,motor='None',color=[.74,.66,.43,1]))
+        for sign,label in [(1,'left'),(-1,'right')]
+        {
+            parts.append(Part(label+'_eye',shape='Sphere',size=[1.3]*3,position=[36,sign*3.6,23],parent='torso',density=1000,motor='None',color=[.03,.04,.02,1]))
+        }
+        tail=Part('short_fan_tail',shape='Sketch',size=[23,27,.05],sketch=[[0,-5],[-23,-13.5],[-21,0],[-23,13.5],[0,5]],position=[-32,0,2],parent='torso',density=1390,motor='None',color=[.24,.21,.15,1])
+        parts.append(tail)
+        parts.append(rod('tail_root_support',[-15,0,2],[-43,0,2],1,'torso',1600))
+        for label,point in [('left',[-5,7,-16.8]),('right',[-5,-7,-16.8]),('front',[10,0,-16.8])]
+        {
+            parts.append(Part(label+'_ground_pad',shape='Sphere',size=[2]*3,position=point,parent='torso',density=1100,motor='None',color=[.3,.26,.13,1]))
+        }
+    }
+    save_project(folder/'Vulture.mjcad',parts)
+    xml,model=export_model(folder,parts)
+    shutil.copyfile(ROOT/'LICENSE-Flappy.txt',folder/'LICENSE-Flappy.txt')
+    (folder/'reference.json').write_text(json.dumps({'source':SOURCE,'parameters':params,'research_mass_kg':.0124481,'complete_mass_kg':float(model.body_mass.sum()),'body_mass_note':'Reference identified aggregate includes reference mechanism and motors; vulture adds power, electronics and decorative material. No weight is removed to compensate for additions.','reference_external_power':not vulture,'flight_validated':False,'physical_flight_validated':False,'assumptions':['Transferred quasi-steady model; numerical parity is not physical validation of the new wing.','Vulture wing area and shape moments recomputed from continuous CAD outline.','Custom converter mass, efficiency, supply resistance and thermal limits are unmeasured allowances.','Decorative shell/body drag, ground effect and aeroelastic deformation need validation.']},indent=2))
+    print(folder,model.body_mass.sum(),model.nq,model.nv,model.nu,flush=True)
+    return parts,model
+}
+if __name__=='__main__'
+{
+    import sys
+    build(sys.argv[1],'--vulture' in sys.argv)
+}

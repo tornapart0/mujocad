@@ -1,0 +1,174 @@
+{
+  "format": "MuJoCoCAD",
+  "version": 2,
+  "units": "mm",
+  "parts": [
+    {
+      "name": "cable_anchor",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [
+        {
+          "name": "pull_cable",
+          "points": [
+            {
+              "body": "cable_anchor",
+              "position": [
+                0,
+                0,
+                0
+              ]
+            },
+            {
+              "body": "cable_slider",
+              "position": [
+                0,
+                0,
+                0
+              ]
+            }
+          ],
+          "rest_mm": 100,
+          "stiffness": 0,
+          "damping": 0.1,
+          "force": 2,
+          "kp": 100,
+          "target": 0.2,
+          "mode": "Pull force"
+        }
+      ],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        25,
+        25,
+        30
+      ],
+      "position": [
+        0,
+        0,
+        15
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1000.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "Torque",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1.0
+      ]
+    },
+    {
+      "name": "cable_slider",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "size": [
+        20,
+        20,
+        20
+      ],
+      "position": [
+        100,
+        0,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "cable_anchor",
+      "joint": "Slide",
+      "axis": "X",
+      "limits": [
+        -65,
+        20
+      ],
+      "unlimited": false,
+      "density": 1000.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.1,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1.0
+      ]
+    }
+  ]
+}

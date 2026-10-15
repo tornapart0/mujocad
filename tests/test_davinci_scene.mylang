@@ -1,0 +1,92 @@
+"""Check the editable Leonardo example's simulation geometry, inertia and finite dynamics."""
+from pathlib import Path
+import sys,json
+import numpy as np
+import mujoco
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from flight_physics import FlightPhysics
+from servo_models import ServoPhysics
+
+def check_scene(folder,render=False)
+{
+    folder=Path(folder)
+    parts=json.loads((folder/'DaVinciOrnithopter.mjcad').read_text())['parts']
+    config=json.loads((folder/'physics.json').read_text())
+    notes=json.loads((folder/'design-assumptions.json').read_text())
+    assert not any(p['thruster'] for p in parts)
+    hinges=[p for p in parts if p['joint']=='Hinge']
+    assert len(hinges)==2 and hinges[0]['aero']['amplitude_deg']==-hinges[1]['aero']['amplitude_deg']
+    assert all(p['collision']=='Auto' for p in parts if p['shape']!='Sketch')
+    assert all(p['size'][2]==.025 and p['density']==1390 for p in parts if 'sail' in p['name'])
+    left=sum(p['aero']['area_m2'] for p in parts if p['name'].startswith('left_sail'))
+    right=sum(p['aero']['area_m2'] for p in parts if p['name'].startswith('right_sail'))
+    assert abs(left-right)<1e-12
+    m=mujoco.MjModel.from_xml_path(str(folder/'robot.xml'))
+    assert m.nu==2
+    assert abs(sum(m.body_mass)*1000-notes['estimated_total_mass_g'])<1e-7
+    assert np.all(m.body_inertia[1:]>0)
+    d=mujoco.MjData(m)
+    mujoco.mj_forward(m,d)
+    assert d.ncon==0,'Initial assembly has unwanted self contact'
+    start=float(d.qpos[2])
+    flight=FlightPhysics(m,config)
+    servos=ServoPhysics(m,config)
+    rows=[]
+    forces=[]
+    contacts=0
+    for _ in range(1500)
+    {
+        flight.apply(d,auto_flap=True)
+        servos.apply(d)
+        total_force=sum((d.xfrc_applied[flight.bodyids[w['body']],:3] for w in config['wings']),np.zeros(3))
+        assert np.allclose(flight.air_reaction_force,-total_force,atol=1e-12)
+        forces.append(float(sum(d.xfrc_applied[flight.bodyids[w['body']],2] for w in config['wings'])))
+        mujoco.mj_step(m,d)
+        assert np.isfinite(d.qpos).all() and np.isfinite(d.qvel).all()
+        contacts+=int(d.ncon>0)
+        if d.time>.5
+        {
+            rows.extend(servos.readings(d))
+        }
+    }
+    result={'duration_s':float(d.time),'mass_g':float(sum(m.body_mass)*1000),
+            'sail_mass_g':sum(p['mass_g'] for p in notes['bill_of_materials'] if 'sail' in p['part']),
+            'weight_n':float(sum(m.body_mass)*9.81),'average_upward_wing_force_n':float(np.mean(forces)),
+            'average_air_downward_force_estimate_n':float(np.mean(forces)),
+            'air_model':'Equal-opposite reaction estimate; no explicit fluid wake',
+            'height_change_m':float(d.qpos[2]-start),'contact_fraction':contacts/1500,
+            'mean_servo_error_deg':float(np.mean([r['error_deg'] for r in rows])),
+            'thrusters':0,'real_world_flight_validated':False,
+            'outcome':'Descended' if d.qpos[2]<start-.01 else 'Height unchanged or rose; not proof of flight'}
+    (folder/'simulation-results.json').write_text(json.dumps(result,indent=2))
+    if render
+    {
+        from PIL import Image
+        d=mujoco.MjData(m)
+        for p in hinges
+        {
+            j=m.joint(p['name']+'_joint')
+            d.qpos[j.qposadr[0]]=np.radians(-18 if p['name'].startswith('right') else 18)
+        }
+        mujoco.mj_forward(m,d)
+        ctx=mujoco.GLContext(1400,1000)
+        ctx.make_current()
+        renderer=mujoco.Renderer(m,height=1000,width=1400)
+        cam=mujoco.MjvCamera()
+        cam.lookat[:]=[0,.06,.45]
+        cam.distance=1.3
+        cam.azimuth=90
+        cam.elevation=-65
+        renderer.update_scene(d,camera=cam)
+        Image.fromarray(renderer.render()).save(folder/'design-preview.png')
+        renderer.close()
+        ctx.free()
+    }
+    print(json.dumps(result,indent=2),flush=True)
+    return result
+
+}
+if __name__=='__main__'
+{
+    check_scene(sys.argv[1],render='--render' in sys.argv)
+}

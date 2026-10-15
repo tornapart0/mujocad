@@ -1,0 +1,97 @@
+"""Reviewable lift measurements for an immutable CAD snapshot."""
+from pathlib import Path
+import json
+from PySide6 import QtWidgets as W,QtCore as C
+from training_ui import runtime,process_environment
+ROOT=Path(__file__).resolve().parent
+
+class LiftScreenPanel(W.QDialog)
+{
+    def __init__(self,folder,parent=None)
+    {
+        super().__init__(parent)
+        self.folder=Path(folder)
+        self.setWindowTitle('Check lift capacity')
+        self.resize(650,440)
+        layout=W.QVBoxLayout(self)
+        self.state=W.QLabel('Preparing a separate copy of your robot…')
+        self.state.setWordWrap(True)
+        layout.addWidget(self.state)
+        note=W.QLabel('The tested wingbeats must produce an average upward force at least 20% above the complete robot weight. This checks available lift capacity; steady hovering itself needs lift to balance weight. A pass still needs free-flight and hardware validation.')
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        self.progress=W.QProgressBar()
+        self.progress.setRange(0,45)
+        layout.addWidget(self.progress)
+        self.log=W.QPlainTextEdit()
+        self.log.setReadOnly(True)
+        layout.addWidget(self.log)
+        self.process=C.QProcess(self)
+        self.process.setProcessChannelMode(C.QProcess.MergedChannels)
+        self.process.readyReadStandardOutput.connect(self.read)
+        self.process.finished.connect(self.process_finished)
+        self.process.errorOccurred.connect(lambda _:self.fail(self.process.errorString()))
+    }
+    def start(self)
+    {
+        self.state.setText('Measuring complete wingbeats across motor speeds, wing trims and conservative variations…')
+        self.process.setProcessEnvironment(process_environment())
+        self.process.start(str(runtime()),['-u',str(ROOT/'lift_screen.py'),str(self.folder)])
+    }
+    def read(self)
+    {
+        text=bytes(self.process.readAllStandardOutput()).decode(errors='replace') if self.process.isOpen() else ''
+        if text
+        {
+            self.log.appendPlainText(text.rstrip())
+        }
+        path=self.folder/'lift-screen.json'
+        if path.exists()
+        {
+            try
+            {
+                report=json.loads(path.read_text())
+                self.progress.setMaximum(report.get('expected_cases',len(report.get('rows',[])) or 45))
+                self.progress.setValue(len(report.get('rows',[])))
+            }
+            except (ValueError,OSError)
+            {
+                pass
+            }
+        }
+    }
+    def process_finished(self,code,status)
+    {
+        self.read()
+        path=self.folder/'lift-screen.json'
+        if code!=0 or not path.exists()
+        {
+            self.fail('Measurement did not finish. See the log; no lift margin is claimed.')
+            return
+        }
+        report=json.loads(path.read_text())
+        ratio=report.get('best_worst_seed_ratio')
+        detail=f'{ratio:.3f} × weight' if ratio is not None else 'No valid complete measurement'
+        if ratio is not None and ratio<=0
+        {
+            detail='No positive average upward force in tested settings'
+        }
+        self.state.setText(('Lift capacity screen passed.' if report.get('complete') and report.get('passed') else 'Lift margin not met — keep this as a research prototype.')+'\nBest conservative average: '+detail+'; required: 1.200 × weight.\nReport: '+str(path))
+    }
+    def fail(self,message)
+    {
+        self.state.setText(str(message))
+    }
+    def closeEvent(self,event)
+    {
+        if self.process.state()!=C.QProcess.NotRunning
+        {
+            self.hide()
+            event.ignore()
+        }
+        else
+        {
+            super().closeEvent(event)
+        }
+    }
+}

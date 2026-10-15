@@ -1,0 +1,6028 @@
+{
+  "format": "MuJoCoCAD",
+  "version": 2,
+  "units": "mm",
+  "parts": [
+    {
+      "name": "fuselage_balsa_keel",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {
+        "preset": "Earth",
+        "gravity": [
+          0,
+          0,
+          -9.81
+        ],
+        "ground": true,
+        "density": 1.225,
+        "viscosity": 2e-05,
+        "wind": [
+          0,
+          0,
+          0
+        ],
+        "timestep": 0.002
+      },
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        12,
+        230,
+        8
+      ],
+      "position": [
+        0,
+        0,
+        450
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "",
+      "joint": "Free",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "frame_rail_-1",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        3,
+        3,
+        220.0
+      ],
+      "position": [
+        -16.0,
+        0.0,
+        4.0
+      ],
+      "rotation": [
+        -89.99999999999999,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "frame_rail_1",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        3,
+        3,
+        220.0
+      ],
+      "position": [
+        16.0,
+        0.0,
+        4.0
+      ],
+      "rotation": [
+        -89.99999999999999,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "frame_cross_-85",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        3,
+        3,
+        32.0
+      ],
+      "position": [
+        0.0,
+        -85.0,
+        4.0
+      ],
+      "rotation": [
+        -0.0,
+        90.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "frame_cross_-30",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        3,
+        3,
+        32.0
+      ],
+      "position": [
+        0.0,
+        -30.0,
+        4.0
+      ],
+      "rotation": [
+        -0.0,
+        90.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "frame_cross_30",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        3,
+        3,
+        32.0
+      ],
+      "position": [
+        0.0,
+        30.0,
+        4.0
+      ],
+      "rotation": [
+        -0.0,
+        90.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "frame_cross_85",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        3,
+        3,
+        32.0
+      ],
+      "position": [
+        0.0,
+        85.0,
+        4.0
+      ],
+      "rotation": [
+        -0.0,
+        90.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "battery_ESTIMATE_12g",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1000,
+        "source": "Design allowance; replace with measured assembled mass.",
+        "note": "Estimated battery/controller/wiring mass. No electrical, voltage sag or thermal model."
+      },
+      "size": [
+        18,
+        42,
+        9
+      ],
+      "position": [
+        0,
+        35,
+        10
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1000,
+      "mass": 0.012,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.22,
+        0.3,
+        0.24,
+        1
+      ]
+    },
+    {
+      "name": "controller_wiring_ESTIMATE_4g",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1000,
+        "source": "Design allowance; replace with measured assembled mass.",
+        "note": "Estimated battery/controller/wiring mass. No electrical, voltage sag or thermal model."
+      },
+      "size": [
+        18,
+        25,
+        5
+      ],
+      "position": [
+        0,
+        -20,
+        9
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1000,
+      "mass": 0.004,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.22,
+        0.3,
+        0.24,
+        1
+      ]
+    },
+    {
+      "name": "right_wing_hinge",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 9.6e-05,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 1.0,
+        "amplitude_deg": 35,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {
+        "mass_g": 5,
+        "stall_nm": 0.0588399,
+        "continuous_nm": 0.01765197,
+        "seconds_60": 0.1,
+        "voltage": 4.8,
+        "rated_voltage": 4.8,
+        "travel_deg": 180,
+        "housing_mm": [
+          25,
+          22,
+          12
+        ],
+        "rotor_inertia": 1e-06,
+        "continuous_duty": false,
+        "mount": "Parent",
+        "kind": "Position",
+        "profile": "5 g \u00b7 SG51R \u00b7 vendor specs",
+        "source": "https://www.adafruit.com/product/2201",
+        "amazon_url": "https://www.amazon.com/s?k=SG51R+5g+servo",
+        "notes": "Vendor specification; batch and clone differences require measurement.",
+        "continuous_rating_assumed": true
+      },
+      "material": {
+        "density": 1330,
+        "source": "https://www.easycomposites.co.uk/high-strength-carbon-fibre-sheet",
+        "note": "Product-specific density; other fibre layups and resins differ. Used as a solid spar proxy, not a measured pultruded rod."
+      },
+      "size": [
+        8,
+        12,
+        8
+      ],
+      "position": [
+        24,
+        -35,
+        8
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Hinge",
+      "axis": "Y",
+      "limits": [
+        -35,
+        35
+      ],
+      "unlimited": false,
+      "density": 1330,
+      "mass": 0.0,
+      "torque": 0.0588399,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.3,
+      "kv": 0.008,
+      "control": 0.0,
+      "damping": 0.001,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.22,
+        0.3,
+        0.24,
+        1
+      ]
+    },
+    {
+      "name": "right_sail_bay_1",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0014399999999999999,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        90.0,
+        55.0,
+        0.025
+      ],
+      "position": [
+        45.0,
+        -27.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          -32.0
+        ],
+        [
+          90.0,
+          -55.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "right_sail_bay_2",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0036125,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        205.0,
+        55.0,
+        0.025
+      ],
+      "position": [
+        102.5,
+        -27.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          90.0,
+          -55.0
+        ],
+        [
+          205.0,
+          -45.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "right_sail_bay_3",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.006575,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        315.0,
+        45.0,
+        0.025
+      ],
+      "position": [
+        157.5,
+        -22.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          205.0,
+          -45.0
+        ],
+        [
+          315.0,
+          -5.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "right_sail_bay_4",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0080625,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        390.0,
+        50.0,
+        0.025
+      ],
+      "position": [
+        195.0,
+        20.0,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          315.0,
+          -5.0
+        ],
+        [
+          390.0,
+          45.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "right_sail_bay_5",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.01341,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        390.0,
+        108.0,
+        0.025
+      ],
+      "position": [
+        195.0,
+        54.0,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          390.0,
+          45.0
+        ],
+        [
+          340.0,
+          108.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "right_sail_bay_6",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0017499999999999998,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        340.0,
+        108.0,
+        0.025
+      ],
+      "position": [
+        170.0,
+        54.0,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          340.0,
+          108.0
+        ],
+        [
+          300.0,
+          85.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "right_sail_bay_7",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0112525,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        300.0,
+        145.0,
+        0.025
+      ],
+      "position": [
+        150.0,
+        72.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          300.0,
+          85.0
+        ],
+        [
+          247.0,
+          145.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "right_sail_bay_8",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0010305,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        247.0,
+        145.0,
+        0.025
+      ],
+      "position": [
+        123.5,
+        72.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          247.0,
+          145.0
+        ],
+        [
+          205.0,
+          112.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "right_sail_bay_9",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0098175,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        205.0,
+        175.0,
+        0.025
+      ],
+      "position": [
+        102.5,
+        87.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          205.0,
+          112.0
+        ],
+        [
+          145.0,
+          175.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "right_sail_bay_10",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.00085,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        145.0,
+        175.0,
+        0.025
+      ],
+      "position": [
+        72.5,
+        87.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          145.0,
+          175.0
+        ],
+        [
+          98.0,
+          130.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "right_sail_bay_11",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.005488,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        98.0,
+        130.0,
+        0.025
+      ],
+      "position": [
+        49.0,
+        65.0,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          98.0,
+          130.0
+        ],
+        [
+          0.0,
+          112.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "right_leading_spar_1",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1330,
+        "source": "https://www.easycomposites.co.uk/high-strength-carbon-fibre-sheet",
+        "note": "Product-specific density; other fibre layups and resins differ. Used as a solid spar proxy, not a measured pultruded rod."
+      },
+      "size": [
+        3,
+        3,
+        92.89241088485109
+      ],
+      "position": [
+        45.0,
+        -43.5,
+        2.0
+      ],
+      "rotation": [
+        89.99999999999999,
+        75.66456458047989,
+        75.66456458047988
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1330,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.22,
+        0.3,
+        0.24,
+        1
+      ]
+    },
+    {
+      "name": "right_leading_spar_2",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1330,
+        "source": "https://www.easycomposites.co.uk/high-strength-carbon-fibre-sheet",
+        "note": "Product-specific density; other fibre layups and resins differ. Used as a solid spar proxy, not a measured pultruded rod."
+      },
+      "size": [
+        3,
+        3,
+        115.43396380615195
+      ],
+      "position": [
+        147.5,
+        -50.0,
+        2.0
+      ],
+      "rotation": [
+        -90.00000000000007,
+        85.0302592718897,
+        -85.03025927188978
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1330,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.22,
+        0.3,
+        0.24,
+        1
+      ]
+    },
+    {
+      "name": "right_leading_spar_3",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1330,
+        "source": "https://www.easycomposites.co.uk/high-strength-carbon-fibre-sheet",
+        "note": "Product-specific density; other fibre layups and resins differ. Used as a solid spar proxy, not a measured pultruded rod."
+      },
+      "size": [
+        3,
+        3,
+        117.04699910719626
+      ],
+      "position": [
+        260.0,
+        -25.0,
+        2.0
+      ],
+      "rotation": [
+        -90.0,
+        70.01689347810002,
+        -70.01689347810002
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1330,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.22,
+        0.3,
+        0.24,
+        1
+      ]
+    },
+    {
+      "name": "right_leading_spar_4",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1330,
+        "source": "https://www.easycomposites.co.uk/high-strength-carbon-fibre-sheet",
+        "note": "Product-specific density; other fibre layups and resins differ. Used as a solid spar proxy, not a measured pultruded rod."
+      },
+      "size": [
+        3,
+        3,
+        90.13878188659973
+      ],
+      "position": [
+        352.5,
+        20.0,
+        2.0
+      ],
+      "rotation": [
+        -90.0,
+        56.30993247402022,
+        -56.3099324740202
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1330,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.22,
+        0.3,
+        0.24,
+        1
+      ]
+    },
+    {
+      "name": "right_rib_2",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        209.88091861815357
+      ],
+      "position": [
+        102.5,
+        -22.5,
+        2.0
+      ],
+      "rotation": [
+        90.00000000000006,
+        77.61924307119284,
+        77.61924307119287
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "right_rib_4",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        392.587569849072
+      ],
+      "position": [
+        195.0,
+        22.5,
+        2.0
+      ],
+      "rotation": [
+        -89.99999999999999,
+        83.418055344822,
+        -83.41805534482198
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "right_rib_5",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        356.7408022640528
+      ],
+      "position": [
+        170.0,
+        54.0,
+        2.0
+      ],
+      "rotation": [
+        -89.99999999999999,
+        72.37770277133174,
+        -72.37770277133173
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "right_rib_7",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        286.41578168809065
+      ],
+      "position": [
+        123.5,
+        72.5,
+        2.0
+      ],
+      "rotation": [
+        -90.00000000000001,
+        59.58516827274298,
+        -59.585168272743
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "right_rib_9",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        227.26636354727023
+      ],
+      "position": [
+        72.5,
+        87.5,
+        2.0
+      ],
+      "rotation": [
+        -90.0,
+        39.64417495714482,
+        -39.64417495714482
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "right_rib_11",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        112.0
+      ],
+      "position": [
+        0.0,
+        56.0,
+        2.0
+      ],
+      "rotation": [
+        -89.99999999999999,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "right_trailing_batten_4",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        80.43009387039157
+      ],
+      "position": [
+        365.0,
+        76.5,
+        1.0
+      ],
+      "rotation": [
+        -90.0,
+        -38.43730149106253,
+        38.43730149106253
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "right_trailing_batten_5",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        46.14108798023731
+      ],
+      "position": [
+        320.0,
+        96.5,
+        1.0
+      ],
+      "rotation": [
+        90.00000000000001,
+        -60.10109816138544,
+        -60.101098161385444
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "right_trailing_batten_6",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        80.05623023850174
+      ],
+      "position": [
+        273.5,
+        115.0,
+        1.0
+      ],
+      "rotation": [
+        -90.0,
+        -41.455233544405125,
+        41.45523354440512
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "right_trailing_batten_7",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        53.41348144429457
+      ],
+      "position": [
+        226.0,
+        128.5,
+        1.0
+      ],
+      "rotation": [
+        90.00000000000001,
+        -51.84277341263094,
+        -51.84277341263096
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "right_trailing_batten_8",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        87.0
+      ],
+      "position": [
+        175.0,
+        143.5,
+        1.0
+      ],
+      "rotation": [
+        -90.0,
+        -43.60281897270362,
+        43.60281897270362
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "right_trailing_batten_9",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        65.06919393998976
+      ],
+      "position": [
+        121.5,
+        152.5,
+        1.0
+      ],
+      "rotation": [
+        90.00000000000001,
+        -46.24536426676835,
+        -46.24536426676836
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "right_trailing_batten_10",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        99.6393496566492
+      ],
+      "position": [
+        49.0,
+        121.0,
+        1.0
+      ],
+      "rotation": [
+        90.00000000000004,
+        -79.59228868750995,
+        -79.59228868750998
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "right_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_wing_hinge",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 9.6e-05,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 1.0,
+        "amplitude_deg": -35,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {
+        "mass_g": 5,
+        "stall_nm": 0.0588399,
+        "continuous_nm": 0.01765197,
+        "seconds_60": 0.1,
+        "voltage": 4.8,
+        "rated_voltage": 4.8,
+        "travel_deg": 180,
+        "housing_mm": [
+          25,
+          22,
+          12
+        ],
+        "rotor_inertia": 1e-06,
+        "continuous_duty": false,
+        "mount": "Parent",
+        "kind": "Position",
+        "profile": "5 g \u00b7 SG51R \u00b7 vendor specs",
+        "source": "https://www.adafruit.com/product/2201",
+        "amazon_url": "https://www.amazon.com/s?k=SG51R+5g+servo",
+        "notes": "Vendor specification; batch and clone differences require measurement.",
+        "continuous_rating_assumed": true
+      },
+      "material": {
+        "density": 1330,
+        "source": "https://www.easycomposites.co.uk/high-strength-carbon-fibre-sheet",
+        "note": "Product-specific density; other fibre layups and resins differ. Used as a solid spar proxy, not a measured pultruded rod."
+      },
+      "size": [
+        8,
+        12,
+        8
+      ],
+      "position": [
+        -24,
+        -35,
+        8
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Hinge",
+      "axis": "Y",
+      "limits": [
+        -35,
+        35
+      ],
+      "unlimited": false,
+      "density": 1330,
+      "mass": 0.0,
+      "torque": 0.0588399,
+      "motor": "Position",
+      "gear": 1.0,
+      "kp": 0.3,
+      "kv": 0.008,
+      "control": 0.0,
+      "damping": 0.001,
+      "frictionloss": 0.0,
+      "armature": 1e-06,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.22,
+        0.3,
+        0.24,
+        1
+      ]
+    },
+    {
+      "name": "left_sail_bay_1",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0014399999999999999,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        90.0,
+        55.0,
+        0.025
+      ],
+      "position": [
+        -45.0,
+        -27.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          -32.0
+        ],
+        [
+          -90.0,
+          -55.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "left_sail_bay_2",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0036125,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        205.0,
+        55.0,
+        0.025
+      ],
+      "position": [
+        -102.5,
+        -27.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -90.0,
+          -55.0
+        ],
+        [
+          -205.0,
+          -45.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "left_sail_bay_3",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.006575,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        315.0,
+        45.0,
+        0.025
+      ],
+      "position": [
+        -157.5,
+        -22.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -205.0,
+          -45.0
+        ],
+        [
+          -315.0,
+          -5.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "left_sail_bay_4",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0080625,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        390.0,
+        50.0,
+        0.025
+      ],
+      "position": [
+        -195.0,
+        20.0,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -315.0,
+          -5.0
+        ],
+        [
+          -390.0,
+          45.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "left_sail_bay_5",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.01341,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        390.0,
+        108.0,
+        0.025
+      ],
+      "position": [
+        -195.0,
+        54.0,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -390.0,
+          45.0
+        ],
+        [
+          -340.0,
+          108.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "left_sail_bay_6",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0017499999999999998,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        340.0,
+        108.0,
+        0.025
+      ],
+      "position": [
+        -170.0,
+        54.0,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -340.0,
+          108.0
+        ],
+        [
+          -300.0,
+          85.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "left_sail_bay_7",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0112525,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        300.0,
+        145.0,
+        0.025
+      ],
+      "position": [
+        -150.0,
+        72.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -300.0,
+          85.0
+        ],
+        [
+          -247.0,
+          145.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "left_sail_bay_8",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0010305,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        247.0,
+        145.0,
+        0.025
+      ],
+      "position": [
+        -123.5,
+        72.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -247.0,
+          145.0
+        ],
+        [
+          -205.0,
+          112.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "left_sail_bay_9",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.0098175,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        205.0,
+        175.0,
+        0.025
+      ],
+      "position": [
+        -102.5,
+        87.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -205.0,
+          112.0
+        ],
+        [
+          -145.0,
+          175.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "left_sail_bay_10",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.00085,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        145.0,
+        175.0,
+        0.025
+      ],
+      "position": [
+        -72.5,
+        87.5,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -145.0,
+          175.0
+        ],
+        [
+          -98.0,
+          130.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "left_sail_bay_11",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.005488,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        98.0,
+        130.0,
+        0.025
+      ],
+      "position": [
+        -49.0,
+        65.0,
+        0
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -98.0,
+          130.0
+        ],
+        [
+          0.0,
+          112.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "left_leading_spar_1",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1330,
+        "source": "https://www.easycomposites.co.uk/high-strength-carbon-fibre-sheet",
+        "note": "Product-specific density; other fibre layups and resins differ. Used as a solid spar proxy, not a measured pultruded rod."
+      },
+      "size": [
+        3,
+        3,
+        92.89241088485109
+      ],
+      "position": [
+        -45.0,
+        -43.5,
+        2.0
+      ],
+      "rotation": [
+        89.99999999999999,
+        -75.66456458047989,
+        -75.66456458047988
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1330,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.22,
+        0.3,
+        0.24,
+        1
+      ]
+    },
+    {
+      "name": "left_leading_spar_2",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1330,
+        "source": "https://www.easycomposites.co.uk/high-strength-carbon-fibre-sheet",
+        "note": "Product-specific density; other fibre layups and resins differ. Used as a solid spar proxy, not a measured pultruded rod."
+      },
+      "size": [
+        3,
+        3,
+        115.43396380615195
+      ],
+      "position": [
+        -147.5,
+        -50.0,
+        2.0
+      ],
+      "rotation": [
+        -90.00000000000007,
+        -85.0302592718897,
+        85.03025927188978
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1330,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.22,
+        0.3,
+        0.24,
+        1
+      ]
+    },
+    {
+      "name": "left_leading_spar_3",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1330,
+        "source": "https://www.easycomposites.co.uk/high-strength-carbon-fibre-sheet",
+        "note": "Product-specific density; other fibre layups and resins differ. Used as a solid spar proxy, not a measured pultruded rod."
+      },
+      "size": [
+        3,
+        3,
+        117.04699910719626
+      ],
+      "position": [
+        -260.0,
+        -25.0,
+        2.0
+      ],
+      "rotation": [
+        -90.0,
+        -70.01689347810002,
+        70.01689347810002
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1330,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.22,
+        0.3,
+        0.24,
+        1
+      ]
+    },
+    {
+      "name": "left_leading_spar_4",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1330,
+        "source": "https://www.easycomposites.co.uk/high-strength-carbon-fibre-sheet",
+        "note": "Product-specific density; other fibre layups and resins differ. Used as a solid spar proxy, not a measured pultruded rod."
+      },
+      "size": [
+        3,
+        3,
+        90.13878188659973
+      ],
+      "position": [
+        -352.5,
+        20.0,
+        2.0
+      ],
+      "rotation": [
+        -90.0,
+        -56.3099324740202,
+        56.3099324740202
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1330,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.22,
+        0.3,
+        0.24,
+        1
+      ]
+    },
+    {
+      "name": "left_rib_2",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        209.88091861815357
+      ],
+      "position": [
+        -102.5,
+        -22.5,
+        2.0
+      ],
+      "rotation": [
+        90.00000000000006,
+        -77.61924307119283,
+        -77.61924307119287
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_rib_4",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        392.587569849072
+      ],
+      "position": [
+        -195.0,
+        22.5,
+        2.0
+      ],
+      "rotation": [
+        -89.99999999999999,
+        -83.418055344822,
+        83.41805534482198
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_rib_5",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        356.7408022640528
+      ],
+      "position": [
+        -170.0,
+        54.0,
+        2.0
+      ],
+      "rotation": [
+        -89.99999999999999,
+        -72.37770277133173,
+        72.37770277133173
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_rib_7",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        286.41578168809065
+      ],
+      "position": [
+        -123.5,
+        72.5,
+        2.0
+      ],
+      "rotation": [
+        -90.00000000000001,
+        -59.58516827274298,
+        59.585168272743
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_rib_9",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        227.26636354727023
+      ],
+      "position": [
+        -72.5,
+        87.5,
+        2.0
+      ],
+      "rotation": [
+        -90.0,
+        -39.644174957144806,
+        39.64417495714482
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_rib_11",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        112.0
+      ],
+      "position": [
+        0.0,
+        56.0,
+        2.0
+      ],
+      "rotation": [
+        -89.99999999999999,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_trailing_batten_4",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        80.43009387039157
+      ],
+      "position": [
+        -365.0,
+        76.5,
+        1.0
+      ],
+      "rotation": [
+        -90.0,
+        38.43730149106254,
+        -38.43730149106253
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_trailing_batten_5",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        46.14108798023731
+      ],
+      "position": [
+        -320.0,
+        96.5,
+        1.0
+      ],
+      "rotation": [
+        90.00000000000001,
+        60.10109816138544,
+        60.101098161385444
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_trailing_batten_6",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        80.05623023850174
+      ],
+      "position": [
+        -273.5,
+        115.0,
+        1.0
+      ],
+      "rotation": [
+        -90.0,
+        41.45523354440513,
+        -41.45523354440512
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_trailing_batten_7",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        53.41348144429457
+      ],
+      "position": [
+        -226.0,
+        128.5,
+        1.0
+      ],
+      "rotation": [
+        90.00000000000001,
+        51.84277341263095,
+        51.84277341263096
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_trailing_batten_8",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        87.0
+      ],
+      "position": [
+        -175.0,
+        143.5,
+        1.0
+      ],
+      "rotation": [
+        -90.0,
+        43.60281897270362,
+        -43.60281897270362
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_trailing_batten_9",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        65.06919393998976
+      ],
+      "position": [
+        -121.5,
+        152.5,
+        1.0
+      ],
+      "rotation": [
+        90.00000000000001,
+        46.24536426676835,
+        46.24536426676836
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "left_trailing_batten_10",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        1.2,
+        1.2,
+        99.6393496566492
+      ],
+      "position": [
+        -49.0,
+        121.0,
+        1.0
+      ],
+      "rotation": [
+        90.00000000000004,
+        79.59228868750995,
+        79.59228868750998
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "left_wing_hinge",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "tail_sail",
+      "shape": "Sketch",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {
+        "area_m2": 0.01177,
+        "normal_coefficient": 1.4,
+        "upstroke_ratio": 1.0,
+        "axis": "Z",
+        "flap_hz": 0,
+        "amplitude_deg": 0,
+        "phase_deg": 0
+      },
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 1390.0,
+        "source": "https://orionind.com/wp-content/uploads/2024/01/Mylar_Physical_Properties.pdf",
+        "note": "25 \u00b5m design choice; PET density from manufacturer bulletin. Rigid membrane proxy; no fabric flex, porosity, seams or flutter.",
+        "areal_density_g_m2": 34.75,
+        "thickness_mm": 0.025
+      },
+      "size": [
+        220.0,
+        90.0,
+        0.025
+      ],
+      "position": [
+        0.0,
+        170.0,
+        4
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [
+        [
+          -72.0,
+          125.0
+        ],
+        [
+          -110.0,
+          195.0
+        ],
+        [
+          -45.0,
+          178.0
+        ],
+        [
+          0.0,
+          215.0
+        ],
+        [
+          45.0,
+          178.0
+        ],
+        [
+          110.0,
+          195.0
+        ],
+        [
+          72.0,
+          125.0
+        ]
+      ],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1390.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.9,
+        0.82,
+        0.61,
+        1
+      ]
+    },
+    {
+      "name": "tail_rib_0",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        142.12670403551894
+      ],
+      "position": [
+        -55.0,
+        150.0,
+        5.0
+      ],
+      "rotation": [
+        -90.0,
+        -50.71059313749964,
+        50.710593137499636
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "tail_rib_1",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        110.0
+      ],
+      "position": [
+        0.0,
+        160.0,
+        5.0
+      ],
+      "rotation": [
+        -89.99999999999999,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "tail_rib_2",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        142.12670403551894
+      ],
+      "position": [
+        55.0,
+        150.0,
+        5.0
+      ],
+      "rotation": [
+        -90.0,
+        50.71059313749966,
+        -50.710593137499636
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    },
+    {
+      "name": "tail_cross_spar",
+      "shape": "Cylinder",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "servo": {},
+      "material": {
+        "density": 155,
+        "source": "https://www.gurit.com/wp-content/uploads/2022/09/TA-DNV-CP-0084-06957-1.pdf",
+        "note": "Nominal grade; wood density, moisture and grain vary."
+      },
+      "size": [
+        2,
+        2,
+        144.0
+      ],
+      "position": [
+        0.0,
+        125.0,
+        5.0
+      ],
+      "rotation": [
+        -0.0,
+        90.0,
+        0.0
+      ],
+      "sketch": [],
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "fuselage_balsa_keel",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 155,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "None",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.78,
+        0.64,
+        0.38,
+        1
+      ]
+    }
+  ]
+}

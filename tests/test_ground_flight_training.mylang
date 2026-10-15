@@ -1,0 +1,46 @@
+"""Ground-start regression: no suspended resets, pose-goal substitution or hop success."""
+from pathlib import Path
+import sys,json,numpy as np
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from robot_training import RobotTask
+from ground_flight_training import GroundFlightTask
+from stable_baselines3.common.env_checker import check_env
+r=Path(__file__).resolve().parents[2]/'Connected-Ground-Ornithopter'
+e=RobotTask(r/'task.json')
+assert isinstance(e,GroundFlightTask)
+obs,info=e.reset(seed=42)
+assert np.all(e.data.qvel==0) and info['ground_start']
+assert e.data.qpos[2]<.3
+for _ in range(18)
+{
+    _,_,done,_,info=e.step(np.zeros(6))
+    assert not done and not info['is_success']
+    assert np.allclose(e.data.ctrl,0)
+}
+assert e.was_grounded
+assert np.allclose(e.model.opt.gravity,[0,0,-9.81])
+e.airborne=100
+_,_,_,_,info=e.step(np.zeros(6))
+assert not info['is_success'] and e.airborne==0
+for _ in range(175)
+{
+    _,_,done,timeout,info=e.step(np.zeros(6))
+    assert not info['is_success']
+    if done or timeout
+    {
+        break
+    }
+}
+e.model.qpos0[2]+=1
+try
+{
+    e.reset(seed=42)
+    raise AssertionError('Suspended initial model accepted')
+}
+except ValueError as error
+{
+    assert 'floor' in str(error)
+}
+e=RobotTask(r/'task.json')
+check_env(e,warn=True)
+print('PASS: built-in ground-flight goal, zero-velocity floor start, settling delay, no hop success, raised start rejected and Gym contract')

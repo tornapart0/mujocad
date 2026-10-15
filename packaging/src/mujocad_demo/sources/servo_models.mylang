@@ -1,0 +1,180 @@
+"""Illustrative servo presets, housing mass/inertia and torque-speed limits."""
+from copy import deepcopy
+import math
+import numpy as np
+PRESETS = {'Micro positional · illustrative': {'mass_g': 9, 'stall_nm': 0.18, 'continuous_nm': 0.054, 'seconds_60': 0.12, 'voltage': 6, 'rated_voltage': 6, 'travel_deg': 180, 'housing_mm': [23, 12, 24], 'rotor_inertia': 1e-06, 'continuous_duty': True, 'mount': 'Parent', 'kind': 'Position'}, 'Standard positional · illustrative': {'mass_g': 55, 'stall_nm': 0.9, 'continuous_nm': 0.27, 'seconds_60': 0.2, 'voltage': 6, 'rated_voltage': 6, 'travel_deg': 180, 'housing_mm': [40, 20, 38], 'rotor_inertia': 1e-05, 'continuous_duty': True, 'mount': 'Parent', 'kind': 'Position'}, 'High-torque positional · illustrative': {'mass_g': 65, 'stall_nm': 2.5, 'continuous_nm': 0.75, 'seconds_60': 0.16, 'voltage': 6, 'rated_voltage': 6, 'travel_deg': 270, 'housing_mm': [40, 20, 40], 'rotor_inertia': 1.5e-05, 'continuous_duty': True, 'mount': 'Parent', 'kind': 'Position'}, 'Fast positional · illustrative': {'mass_g': 40, 'stall_nm': 0.6, 'continuous_nm': 0.18, 'seconds_60': 0.07, 'voltage': 6, 'rated_voltage': 6, 'travel_deg': 180, 'housing_mm': [35, 18, 30], 'rotor_inertia': 6e-06, 'continuous_duty': True, 'mount': 'Parent', 'kind': 'Position'}, 'Continuous rotation · illustrative': {'mass_g': 9, 'stall_nm': 0.16, 'continuous_nm': 0.048, 'seconds_60': 0.167, 'voltage': 6, 'rated_voltage': 6, 'travel_deg': 360, 'housing_mm': [23, 12, 24], 'rotor_inertia': 1e-06, 'continuous_duty': True, 'mount': 'Parent', 'kind': 'Velocity'}}
+
+def validate_servos(parts)
+{
+    for part in parts
+    {
+        s = part.servo
+        if not s
+        {
+            continue
+        }
+        if part.joint != 'Hinge' or part.motor != s.get('kind')
+        {
+            raise ValueError(part.name + ': servo needs a Hinge and its selected Position or Velocity control mode.')
+        }
+        for key in ['mass_g', 'stall_nm', 'continuous_nm', 'seconds_60', 'voltage', 'rated_voltage', 'travel_deg', 'rotor_inertia']
+        {
+            if not math.isfinite(float(s.get(key, -1))) or s[key] < 0
+            {
+                raise ValueError('Servo specifications must be finite and nonnegative.')
+            }
+        }
+        if min(s['stall_nm'], s['seconds_60'], s['voltage'], s['rated_voltage'], s['travel_deg']) <= 0 or not 0 < s['continuous_nm'] <= s['stall_nm']
+        {
+            raise ValueError('Servo torque, speed, voltage and travel must be positive; continuous torque cannot exceed stall torque.')
+        }
+        if len(s.get('housing_mm', [])) != 3 or not all((math.isfinite(v) and v > 0 for v in s['housing_mm'])) or s.get('mount') not in ['Parent', 'Moving part']
+        {
+            raise ValueError('Servo housing needs three positive dimensions and a mount location.')
+
+        }
+        if s.get('electrical')
+        {
+            e=s['electrical']
+            if s['kind']!='Velocity' or any(not math.isfinite(float(e.get(k,-1))) or e[k]<=0 for k in ['kv_rpm_v','resistance_ohm','current_limit_a','reduction','efficiency']) or not 0<e['efficiency']<=1 or not 0<=e.get('idle_current_a',-1)<e['current_limit_a']
+            {
+                raise ValueError('Geared motor needs finite electrical limits, positive reduction and efficiency in (0,1].')
+            }
+        }
+    }
+}
+def add_servo_inertia(parts, inertials)
+{
+    from model import world_matrix
+    added = 0
+
+    def shift(vector)
+    {
+        return np.dot(vector, vector) * np.eye(3) - np.outer(vector, vector)
+    }
+    for part in parts
+    {
+        s = part.servo
+        if not s
+        {
+            continue
+        }
+        mass = s['mass_g'] * 0.001
+        mount = next((p for p in parts if p.name == part.parent), part) if s['mount'] == 'Parent' else part
+        relative = np.linalg.inv(world_matrix(mount, parts)) @ world_matrix(part, parts)
+        point = (relative @ np.r_[part.pivot, 1])[:3] * 0.001
+        dims = np.asarray(s['housing_mm']) * 0.001
+        housing = np.diag([mass * (dims[1] ** 2 + dims[2] ** 2) / 12, mass * (dims[0] ** 2 + dims[2] ** 2) / 12, mass * (dims[0] ** 2 + dims[1] ** 2) / 12])
+        rotation = relative[:3, :3]
+        housing = rotation @ housing @ rotation.T
+        old_mass, old_center, old_tensor = inertials[mount.name]
+        total = old_mass + mass
+        center = (old_mass * old_center + mass * point) / total
+        tensor = old_tensor + old_mass * shift(old_center - center) + housing + mass * shift(point - center)
+        inertials[mount.name] = (total, center, tensor)
+        added += mass
+    }
+    return added
+
+}
+class ServoPhysics
+{
+
+    def __init__(self, model, config)
+    {
+        self.model = model
+        self.entries = []
+        self.targets = {}
+        self.outputs = {}
+        self.last_time = -1
+        for item in config.get('servos', [])
+        {
+            name = item['body']
+            act = model.actuator(name + '_motor').id
+            joint = model.joint(name + '_joint').id
+            self.entries.append((name, act, joint, item['settings']))
+
+        }
+    }
+    def apply(self, data)
+    {
+        if data.time < self.last_time
+        {
+            self.targets.clear()
+            self.outputs.clear()
+        }
+        self.last_time = data.time
+        for name, act, joint, s in self.entries
+        {
+            gear = abs(self.model.actuator_gear[act, 0])
+            ratio = s['voltage'] / s['rated_voltage']
+            omega = np.radians(60 / s['seconds_60']) * ratio
+            velocity = data.qvel[self.model.jnt_dofadr[joint]]
+            peak = s['stall_nm'] * ratio
+            limit = min(peak, s['continuous_nm'] * ratio) if s['continuous_duty'] else peak
+            low = -min(limit, peak * max(0, 1 + velocity / omega)) / gear
+            high = min(limit, peak * max(0, 1 - velocity / omega)) / gear
+            if s.get('electrical')
+            {
+                e=s['electrical']
+                kt=60/(2*math.pi*e['kv_rpm_v'])
+                reduction=e['reduction']
+                voltage=s['voltage']
+                current_limit=e['current_limit_a']
+                idle=e['idle_current_a']
+                emf=kt*velocity*reduction
+                forward=max(0,min(current_limit,(voltage-emf)/e['resistance_ohm'])-idle)
+                reverse=max(0,min(current_limit,(voltage+emf)/e['resistance_ohm'])-idle)
+                gain=kt*reduction*e['efficiency']/gear
+                low=-reverse*gain
+                high=forward*gain
+                omega=max(0,(voltage-idle*e['resistance_ohm'])/kt/reduction)
+            }
+            self.model.actuator_forcerange[act] = [low, high]
+            if s['kind'] == 'Position'
+            {
+                received = float(data.ctrl[act])
+                if act not in self.outputs or not np.isclose(received, self.outputs[act], atol=1e-10, rtol=0)
+                {
+                    self.targets[act] = received
+                }
+                old = self.outputs.get(act, float(data.qpos[self.model.jnt_qposadr[joint]]) * gear)
+                output = float(np.clip(self.targets[act], old - omega * gear * self.model.opt.timestep, old + omega * gear * self.model.opt.timestep))
+                self.outputs[act] = output
+                data.ctrl[act] = output
+            }
+            else
+            {
+                data.ctrl[act] = np.clip(data.ctrl[act], -omega * gear, omega * gear)
+
+            }
+        }
+    }
+    def readings(self, data)
+    {
+        result = []
+        for name, act, joint, s in self.entries
+        {
+            gear = abs(self.model.actuator_gear[act, 0])
+            q = data.qpos[self.model.jnt_qposadr[joint]]
+            speed = data.qvel[self.model.jnt_dofadr[joint]]
+            target = self.targets.get(act, float(data.ctrl[act])) / gear
+            error = abs(target - q) if s['kind'] == 'Position' else abs(target - speed)
+            signed_force = float(data.actuator_force[act] * gear)
+            force = abs(signed_force)
+            available = float((self.model.actuator_forcerange[act,1] if signed_force>=0 else -self.model.actuator_forcerange[act,0])*gear)
+            saturation = force >= available * 0.95 and available > 1e-08
+            result.append({'name': name, 'position_deg': float(np.degrees(q)), 'speed_deg_s': float(np.degrees(speed)), 'error_deg': float(np.degrees(error)), 'torque_nm': float(force), 'available_nm': float(available), 'saturated': bool(saturation), 'stalled': bool(saturation and abs(speed) < 0.1 and (error > 0.05))})
+        }
+        return result
+    }
+}
+
+from pathlib import Path
+import json
+PRESETS.update(json.loads(Path(__file__).with_name("servo_catalog.json").read_text()))
+
+def housing_mass_on(name, parts)
+{
+    return sum(p.servo['mass_g'] * 0.001 for p in parts if p.servo and ((p.parent if p.servo['mount'] == 'Parent' and p.parent else p.name) == name))
+}

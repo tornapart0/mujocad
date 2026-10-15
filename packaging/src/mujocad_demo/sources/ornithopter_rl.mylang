@@ -1,0 +1,208 @@
+"""PPO wing-gait training with physical servo limits and ground-contact failure."""
+from pathlib import Path
+import argparse, json, math, time, datetime
+import numpy as np
+import mujoco
+import gymnasium as gym
+from gymnasium import spaces
+from flight_physics import FlightPhysics
+from servo_models import ServoPhysics
+DEADLINE = datetime.datetime(2026, 10, 13, 11, tzinfo=datetime.timezone.utc).timestamp()
+
+class FlightTask(gym.Env)
+{
+
+    def __init__(self, folder, seconds=8, randomize=True)
+    {
+        self.folder = Path(folder)
+        self.model = mujoco.MjModel.from_xml_path(str(self.folder / 'robot.xml'))
+        root = self.model.body('fuselage_balsa_keel').id
+        root_joint = int(self.model.body_jntadr[root])
+        if root_joint < 0 or self.model.jnt_type[root_joint] != mujoco.mjtJoint.mjJNT_FREE or self.model.jnt_qposadr[root_joint] != 0
+        {
+            raise ValueError('Flight training requires an unsupported free root, with no fixture.')
+        }
+        self.data = mujoco.MjData(self.model)
+        self.config = json.loads((self.folder / 'physics.json').read_text())
+        self.flight = FlightPhysics(self.model, self.config)
+        self.servos = ServoPhysics(self.model, self.config)
+        self.mass = self.model.body_mass.copy()
+        self.inertia = self.model.body_inertia.copy()
+        self.ids = [self.model.actuator(n + '_motor').id for n in ['right_wing_hinge', 'left_wing_hinge']]
+        self.pitch_ids = [self.model.actuator(n + '_motor').id for n in ['right_wing_pitch', 'left_wing_pitch']] if any(x['body'].endswith('_wing_pitch') for x in self.config.get('servos', [])) else []
+        self.base_flap = next(x['settings'] for x in self.config['wings'] if x['body']=='right_wing_hinge')
+        self.base_pitch = next((x['settings'] for x in self.config['wings'] if x['body']=='right_wing_pitch'), {})
+        self.nominal_voltages = [float(settings['voltage']) for _, _, _, settings in self.servos.entries]
+        self.action_count = 6 if self.pitch_ids else 4
+        self.randomize = randomize
+        self.seconds = seconds
+        self.frames = 25
+        self.dt = self.frames * self.model.opt.timestep
+        self.amax = min((abs(float(self.model.actuator_ctrlrange[i, 1])) for i in self.ids))
+        self.action_space = spaces.Box(-1, 1, shape=(self.action_count,), dtype=np.float32)
+        self.observation_space = spaces.Box(-np.inf, np.inf, shape=(self.model.nq + self.model.nv + 5 + self.action_count,), dtype=np.float32)
+        self.phase = 0.0
+        self.last_action = np.zeros(self.action_count)
+        self.parameters = np.zeros(3)
+
+    }
+    def observe(self)
+    {
+        return np.r_[self.data.qpos, self.data.qvel, self.parameters, math.sin(2 * math.pi * self.phase), math.cos(2 * math.pi * self.phase), self.last_action].astype(np.float32)
+
+    }
+    def reset(self, *, seed=None, options=None)
+    {
+        super().reset(seed=seed)
+        factor = float(self.np_random.uniform(0.95, 1.05)) if self.randomize else 1.0
+        self.model.body_mass[:] = self.mass * factor
+        self.model.body_inertia[:] = self.inertia * factor
+        mujoco.mj_setConst(self.model, self.data)
+        mujoco.mj_resetData(self.model, self.data)
+        self.data.qpos[2] = 1.5
+        self.data.qvel[:] = 0
+        for (_, _, _, settings), nominal in zip(self.servos.entries, self.nominal_voltages)
+        {
+            settings['voltage'] = nominal * (float(self.np_random.uniform(0.95, 1)) if self.randomize else 1)
+        }
+        self.flight.environment['wind'] = self.np_random.uniform(-0.03, 0.03, 3).tolist() if self.randomize else [0, 0, 0]
+        self.phase = 0.0
+        self.last_action = np.zeros(self.action_count)
+        self.parameters = np.zeros(3)
+        self.servos.last_time = -1
+        self.servos.targets.clear()
+        self.servos.outputs.clear()
+        mujoco.mj_forward(self.model, self.data)
+        return (self.observe(), {})
+
+    }
+    def step(self, action)
+    {
+        action = np.clip(action, -1, 1)
+        frequency = (1.8 + 1.2 * float(action[0])) if self.pitch_ids else (1.5 + 0.5 * float(action[0]))
+        amplitude = self.amax * (0.75 + 0.25 * float(action[1]))
+        roll_bias = 0.1 * float(action[2])
+        duty = 0.6 + 0.15 * float(action[3])
+        if self.pitch_ids
+        {
+            frequency = np.clip(self.base_flap['flap_hz'] + .35 * float(action[0]), .6, 3)
+            amplitude = np.clip(math.radians(abs(self.base_flap['amplitude_deg'])) * (1 + .1 * float(action[1])), 0, self.amax)
+            duty = np.clip(self.base_flap.get('downstroke_duty', .5) + .08 * float(action[3]), .3, .75)
+        }
+        self.parameters = np.array([frequency, amplitude, duty])
+        self.last_action = action.copy()
+        total_power = 0.0
+        air_force = 0.0
+        contact = False
+        for _ in range(self.frames)
+        {
+            cycle = (self.phase + duty / 2) % 1
+            value = -1 + 2 * cycle / duty if cycle < duty else 1 - 2 * (cycle - duty) / (1 - duty)
+            angle = amplitude * value
+            for i, target in zip(self.ids, [angle + roll_bias, -angle + roll_bias])
+            {
+                self.data.ctrl[i] = np.clip(target, *self.model.actuator_ctrlrange[i])
+            }
+            for i in self.pitch_ids
+            {
+                pitch_cycle = (self.phase + duty / 2 + self.base_pitch.get('phase_deg',0)/360 + .12*float(action[5])) % 1
+                pitch_target = math.radians(self.base_pitch['amplitude_deg']) + .15*float(action[4]) if pitch_cycle >= duty else 0
+                self.data.ctrl[i] = np.clip(pitch_target, *self.model.actuator_ctrlrange[i])
+            }
+            self.flight.apply(self.data, False)
+            self.servos.apply(self.data)
+            total_power += self.flight.air_power_w
+            air_force -= float(self.flight.air_reaction_force[2])
+            mujoco.mj_step(self.model, self.data)
+            self.phase = (self.phase + frequency * self.model.opt.timestep) % 1
+            contact = contact or bool(self.data.ncon)
+            if not np.isfinite(self.data.qpos).all() or not np.isfinite(self.data.qvel).all()
+            {
+                raise RuntimeError('Nonfinite physics; training result rejected')
+            }
+        }
+        height = float(self.data.qpos[2])
+        vertical = float(self.data.qvel[2])
+        body = self.model.body('fuselage_balsa_keel').id
+        up = float(self.data.xmat[body].reshape(3, 3)[2, 2])
+        reward = 1 - 2 * abs(height - 1.5) - 0.35 * abs(vertical) - 0.8 * (1 - up) - 0.01 * total_power / self.frames
+        failed = contact or height < 0.2 or up < 0 or (height > 4)
+        if failed
+        {
+            reward -= 10
+        }
+        info = {'height_m': height, 'vertical_m_s': vertical, 'up': up, 'contact': contact, 'air_upward_n': air_force / self.frames, 'weight_n': float(sum(self.model.body_mass) * 9.81)}
+        return (self.observe(), float(reward), bool(failed), bool(self.data.time >= self.seconds), info)
+
+    }
+}
+def evaluate(policy, folder)
+{
+    rows = []
+    for seed in [101, 202, 303, 404, 505]
+    {
+        env = FlightTask(folder, seconds=20, randomize=True)
+        obs, _ = env.reset(seed=seed)
+        history = []
+        for _ in range(400)
+        {
+            action, _ = policy.predict(obs, deterministic=True)
+            obs, reward, done, truncated, info = env.step(action)
+            history.append(info)
+            if done or truncated
+            {
+                break
+            }
+        }
+        late = history[int(len(history) / 2):]
+        passed = len(history) == 400 and (not any((x['contact'] for x in history))) and (min((x['height_m'] for x in late)) > 0.8) and (abs(late[-1]['height_m'] - late[0]['height_m']) / (len(late) * env.dt) < 0.05) and (min((x['up'] for x in late)) > 0.64)
+        rows.append({'seed': seed, 'steps': len(history), 'passed': bool(passed), 'final_height_m': history[-1]['height_m'], 'late_mean_air_force_n': float(np.mean([x['air_upward_n'] for x in late])), 'weight_n': info['weight_n']})
+    }
+    report = {'simulation_success': all((x['passed'] for x in rows)), 'physical_flight_validated': False, 'trials': rows, 'note': 'Rigid-sail normal-force approximation. No real-world flight claim; coefficients, hardware, flex and battery need validation.'}
+    (Path(folder) / 'rl-evaluation.json').write_text(json.dumps(report, indent=2))
+    return report
+}
+if __name__ == '__main__'
+{
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.callbacks import BaseCallback
+    import torch
+    parser = argparse.ArgumentParser()
+    parser.add_argument('folder')
+    parser.add_argument('--steps', type=int, default=100000)
+    parser.add_argument('--resume', action='store_true')
+    parser.add_argument('--max-seconds', type=float, default=None, help='Authorized new experiment duration; otherwise honor the overnight deadline.')
+    args = parser.parse_args()
+    deadline = time.time() + args.max_seconds if args.max_seconds is not None else DEADLINE
+    folder = Path(args.folder)
+    torch.set_num_threads(2)
+    env = FlightTask(folder)
+    policy_path = folder / 'flight-policy.zip'
+    policy = PPO.load(policy_path, env=env, device='cpu') if args.resume and policy_path.exists() else PPO('MlpPolicy', env, n_steps=512, batch_size=64, n_epochs=5, policy_kwargs={'net_arch': [64, 64]}, seed=42, device='cpu', verbose=0)
+
+    class Checkpoint(BaseCallback)
+    {
+
+        def _on_step(self)
+        {
+            if self.num_timesteps % 1000 == 0
+            {
+                (folder / 'rl-progress.json').write_text(json.dumps({'timesteps': self.num_timesteps, 'utc': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'status': 'training'}))
+            }
+            if self.num_timesteps % 10000 == 0
+            {
+                self.model.save(policy_path)
+            }
+            return time.time() < deadline
+        }
+    }
+    started = time.time()
+    policy.learn(total_timesteps=args.steps, callback=Checkpoint(), reset_num_timesteps=not args.resume)
+    policy.save(policy_path)
+    report = evaluate(policy, folder)
+    report['training_timesteps'] = policy.num_timesteps
+    report['wall_seconds'] = time.time() - started
+    (folder / 'rl-progress.json').write_text(json.dumps({'status': 'completed', 'timesteps': policy.num_timesteps, 'simulation_success': report['simulation_success']}))
+    (folder / 'rl-evaluation.json').write_text(json.dumps(report, indent=2))
+    print(json.dumps(report, indent=2), flush=True)
+}

@@ -1,0 +1,142 @@
+"""Physical fixture capacity screen. Fixture forces are NEVER counted as aerodynamic lift."""
+from pathlib import Path
+from copy import deepcopy
+import json,math,shutil,itertools
+import xml.etree.ElementTree as E
+import numpy as np,mujoco
+from ground_flight_training import GroundFlightTask
+
+def screen(folder)
+{
+    folder=Path(folder).resolve()
+    fixture=folder/'lift-capacity-fixture'
+    fixture.mkdir(exist_ok=True)
+    xml=E.parse(folder/'robot.xml')
+    xml.getroot().find('compiler').set('meshdir',str(folder/'meshes'))
+    root=json.loads((folder/'scenario.json').read_text())['root']
+    E.SubElement(xml.getroot().find('equality'),'weld',name='force_measurement_fixture',body1=root,solref='.002 1',solimp='.999 .999 .001')
+    xml.write(fixture/'robot.xml')
+    for name in ['physics.json','scenario.json']
+    {
+        shutil.copyfile(folder/name,fixture/name)
+    }
+    config=json.loads((folder/'bench-task.json').read_text())
+    config['randomize_start']=True
+    (fixture/'task.json').write_text(json.dumps(config,indent=2))
+    rows=[]
+    scenario=json.loads((folder/'scenario.json').read_text())
+    trim=float(scenario.get('lift_screen_trim_deg',8.))
+    if not math.isfinite(trim) or not 0<trim<=60
+    {
+        raise ValueError('Capacity feathering sweep must remain within rated root servo travel.')
+    }
+    gaits=[('constant',-trim),('constant',0.),('constant',trim),('feather_upstroke',trim),('inverted_feather',trim)]
+    for frequency,gait,seed in itertools.product([2.,4.,8.],gaits,[101,202,303])
+    {
+        profile,trim=gait
+        env=GroundFlightTask(fixture/'task.json')
+        env.reset(seed=seed)
+        m,d=env.model,env.data
+        crank_joint=m.joint('drive_crank_joint').id
+        rod_joint=m.joint('crank_connecting_rod_joint').id
+        if m.jnt_limited[crank_joint] or m.jnt_limited[rod_joint]
+        {
+            raise ValueError('A rotating crank and its connecting pin must both have continuous rotation. Rebuild this obsolete prototype before screening.')
+        }
+        q=m.jnt_qposadr[crank_joint]
+        wing_velocity=m.jnt_dofadr[m.joint('right_wing_rocker_joint').id]
+        first=None
+        start_q=None
+        start_t=None
+        impulse=0.
+        positive_impulse=0.
+        peak=-math.inf
+        energy=0.
+        invalid_contact=False
+        max_error=0.
+        z0=float(d.qpos[2])
+        drift=0.
+        incidence_q=[m.joint(name+'_joint').qposadr[0] for name in scenario['incidence_motors']]
+        angle_min=np.full(3,np.inf)
+        angle_max=np.full(3,-np.inf)
+        for _ in range(round(15/m.opt.timestep))
+        {
+            t=float(d.time)
+            u=float(np.clip((t-.75)/1.5,0,1))
+            gain=u*u*(3-2*u)
+            pitch=trim
+            if profile!='constant'
+            {
+                # Flat on one stroke, edge-on toward the other. Symmetric +/- trim
+                # gives equal projected drag on both strokes and cannot rectify lift.
+                pitch=.5*trim*(1+math.tanh(float(d.qvel[wing_velocity]))*(1 if profile=='feather_upstroke' else -1))
+            }
+            targets=[gain*2*math.pi*frequency,gain*math.radians(pitch),gain*math.radians(pitch),0.]
+            for act,target in zip(env.ids,targets)
+            {
+                d.ctrl[act]=np.clip(target*m.actuator_gear[act,0],*m.actuator_ctrlrange[act])
+            }
+            env.flight.apply(d,False)
+            env.servos.apply(d)
+            force=-float(env.flight.air_reaction_force[2])
+            mujoco.mj_step(m,d)
+            if t>=3 and first is None
+            {
+                first=math.ceil(float(d.qpos[q])/(2*math.pi))*2*math.pi
+            }
+            if first is not None and start_q is None and d.qpos[q]>=first
+            {
+                start_q=float(d.qpos[q])
+                start_t=float(d.time)
+            }
+            if start_q is not None
+            {
+                impulse+=force*m.opt.timestep
+                positive_impulse+=max(0.,force)*m.opt.timestep
+                angles=d.qpos[[m.jnt_qposadr[m.joint('right_wing_rocker_joint').id],*incidence_q]]
+                angle_min=np.minimum(angle_min,angles)
+                angle_max=np.maximum(angle_max,angles)
+                peak=max(peak,force)
+                energy+=env.flight.air_power_w*m.opt.timestep
+                max_error=max(max_error,float(np.max(np.abs(d.efc_pos[:9]))))
+                drift=max(drift,abs(float(d.qpos[2])-z0))
+                for c in d.contact
+                {
+                    names=[m.geom(c.geom1).name,m.geom(c.geom2).name]
+                    if c.dist<-.000001 and not ('floor' in names and any('_ground_pad_' in n for n in names))
+                    {
+                        invalid_contact=True
+                    }
+                }
+                if d.qpos[q]-start_q>=20*math.pi
+                {
+                    break
+                }
+            }
+        }
+        duration=float(d.time)-start_t if start_t is not None else 0.
+        cycles=(float(d.qpos[q])-start_q)/(2*math.pi) if start_q is not None else 0.
+        weight=float(m.body_mass.sum()*9.81)
+        mean=impulse/duration if duration>0 else 0.
+        warnings=sum(int(w.number) for w in d.warning)
+        valid=cycles>=10 and not invalid_contact and max_error<.0005 and drift<.001 and np.isfinite(d.qpos).all() and np.isfinite([mean,energy,cycles,max_error,drift]).all() and warnings==0
+        row={'frequency_command_hz':frequency,'incidence_profile':profile,'incidence_trim_deg':trim,'seed':seed,'measured_cycles':cycles,'measured_seconds':duration,'achieved_frequency_hz':cycles/duration if duration>0 else 0.,'joint_angle_names':['right_wing_rocker',*scenario['incidence_motors']],'minimum_angles_deg':np.degrees(angle_min).tolist() if start_q is not None else None,'maximum_angles_deg':np.degrees(angle_max).tolist() if start_q is not None else None,'mean_upward_aerodynamic_force_n':mean,'positive_upward_force_average_n':positive_impulse/duration if duration>0 else 0.,'peak_upward_force_n':peak if math.isfinite(peak) else None,'whole_robot_weight_n':weight,'mean_lift_weight_ratio':mean/weight,'air_work_j':energy,'maximum_loop_error_m':max_error,'fixture_height_drift_m':drift,'warning_count':warnings,'invalid_contacts':invalid_contact,'valid_measurement':bool(valid)}
+        rows.append(row)
+        groups={}
+        for r in rows
+        {
+            groups.setdefault((r['frequency_command_hz'],r['incidence_profile'],r['incidence_trim_deg']),[]).append(r)
+        }
+        robust=[(min(r['mean_lift_weight_ratio'] for r in group),key) for key,group in groups.items() if len(group)==3 and all(r['valid_measurement'] for r in group)]
+        best=max(robust) if robust else None
+        report={'protocol':'Stationary welded fixture at the unchanged CAD ground height. Force is only distributed aerodynamic surface loads, excluding fixture/contact reactions. Settles 3s then averages 10 complete measured crank revolutions. Three fixed trims and two opposite 0-to-trim feathering profiles; both directions tested because linkage sign conventions vary. Actual servo torque/speed limits. Same gait across +0..5% mass, -0..5% supply, -0..10% aerodynamic coefficient. Positive-only force is a diagnostic upper bound with downward loads excluded from that statistic only; all signed loads remain in simulation and mean lift. Uncalibrated simulation, NOT flight.','required_lift_weight_ratio':1.2,'tested_gaits_only':True,'expected_cases':45,'complete':len(rows)==45,'best_worst_seed_ratio':best[0] if best else None,'best_gait':list(best[1]) if best else None,'passed':bool(len(rows)==45 and best and best[0]>=1.2),'flight_validated':False,'physical_flight_validated':False,'rows':rows}
+        (folder/'lift-screen.json').write_text(json.dumps(report,indent=2))
+        print(frequency,profile,trim,seed,'L/W',round(mean/weight,4),'valid',bool(valid),flush=True)
+    }
+    return report
+}
+if __name__=='__main__'
+{
+    import sys
+    screen(sys.argv[1])
+}

@@ -1,0 +1,46 @@
+import sys, json, time, datetime, itertools
+from pathlib import Path
+sys.path.insert(0, 'outputs/MuJoCoCAD-Sensible')
+from ornithopter_balance_search import balanced_candidate, fixture_screen
+from ornithopter_optimize import evaluate
+from model import save_project, export_model
+
+def main()
+{
+    out = Path('outputs/Overnight-Stronger-Search')
+    out.mkdir(exist_ok=True)
+    for i, (sy, spring, frequency) in enumerate(itertools.product([2, 3], [0.0002, 0.0008], [1.5, 2, 2.5]))
+    {
+        if time.time() >= datetime.datetime(2026, 10, 13, 11, tzinfo=datetime.timezone.utc).timestamp()
+        {
+            break
+        }
+        folder = out / str(i)
+        params = dict(sy=sy, offset_mm=74, spring=spring, actuator='X10MiniPro', frequency=frequency)
+        parts = balanced_candidate(**params)
+        try
+        {
+            screen = fixture_screen(folder, parts)
+            save_project(folder / 'candidate.mjcad', parts)
+            row = {'parameters': params, 'screen': screen, 'trial_directory': str(folder), 'physical_flight_validated': False}
+            if screen['fixture_mean_lift_n'] > 0.8 * screen['weight_n']
+            {
+                row['free_flight'] = evaluate(folder / 'free-flight', parts, seconds=15)
+            }
+        }
+        except Exception as e
+        {
+            row = {'parameters': params, 'error': str(e), 'trial_directory': str(folder)}
+        }
+        with (out / 'search.jsonl').open('a') as f
+        {
+            f.write(json.dumps(row) + '\n')
+        }
+        print(json.dumps(row), flush=True)
+    }
+    (out / 'completed.json').write_text(json.dumps({'complete': True}))
+}
+if __name__ == '__main__'
+{
+    main()
+}

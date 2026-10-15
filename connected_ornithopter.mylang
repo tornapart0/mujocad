@@ -1,0 +1,148 @@
+"""Connected pin/clevis ornithopter prototype with real ground supports; not a flying aircraft claim."""
+from pathlib import Path
+from copy import deepcopy
+from dataclasses import asdict
+import json,numpy as np
+from scipy.spatial.transform import Rotation
+from davinci_design import build_design
+from model import Part,save_project,load_project,export_model
+
+TAN=[.78,.64,.38,1]
+GREEN=[.22,.30,.24,1]
+
+def bored(p,diameter,axis,offset=(0,0,0))
+{
+    left=Part(name='stock',size=p.size)
+    cutter=Part(name='bore',shape='Cylinder',size=[diameter,diameter,40],position=list(offset),rotation=[90,0,0] if axis=='Y' else [0,90,0])
+    p.shape='Boolean'
+    p.boolean={'operation':'Cut','left':asdict(left),'right':asdict(cutter)}
+    return p
+}
+
+def rod(name,a,b,diameter,parent,density=1330)
+{
+    a,b=np.array(a,float),np.array(b,float)
+    delta=b-a
+    length=float(np.linalg.norm(delta))
+    rotation,_=Rotation.align_vectors([delta/length],[[0,0,1]])
+    return Part(name=name,shape='Cylinder',size=[diameter,diameter,length],position=((a+b)/2).tolist(),rotation=rotation.as_euler('xyz',degrees=True).tolist(),parent=parent,density=density,motor='None',collision='Auto',color=GREEN)
+}
+
+def build_connected()
+{
+    parts=build_design(1.2)
+    root=parts[0]
+    root.position[2]=284
+    root.scenario={'kind':'GroundOrnithopter','settle_s':.75,'ramp_s':1.5,'takeoff_clearance_m':.1,'required_airborne_s':20,'note':'Must lift off under wing forces; never initialized in mid-air.'}
+    reference=load_project(Path(__file__).resolve().parents[1]/'Prototype-Trim/600/candidate.mjcad')
+    flap_servo=deepcopy(next(p.servo for p in reference if p.name=='right_wing_hinge'))
+    pitch_servo=deepcopy(next(p.servo for p in reference if p.name=='right_wing_pitch'))
+    for sign,label in [(1,'right'),(-1,'left')]
+    {
+        hub=next(p for p in parts if p.name==label+'_wing_hinge')
+        original_children=[p for p in parts if p.parent==hub.name]
+        hub.position[0]=sign*64
+        hub.servo=deepcopy(flap_servo)
+        hub.torque=hub.servo['stall_nm']
+        hub.kp=1.5
+        hub.kv=.01
+        hub.armature=.000001
+        hub.limits=[-32,32]
+        hub.aero.update(flap_hz=2.,amplitude_deg=sign*30,waveform='Sine',startup_delay_s=.75,ramp_s=1.5)
+        bored(hub,3.2,'Y')
+        for y_offset in [-9.5,9.5]
+        {
+            ear=Part(name=label+'_clevis_'+str(int(y_offset*10)).replace('-','n'),size=[12,3,12],position=[sign*62,-35+y_offset,8],parent=root.name,density=1330,motor='None',collision='Auto',color=GREEN)
+            parts.append(bored(ear,3.2,'Y',(sign*2,0,0)))
+            parts.append(rod(label+'_mount_bridge_'+str(int(y_offset*10)).replace('-','n'),[sign*16,-35+y_offset,4],[sign*62,-35+y_offset,4],3,root.name))
+        }
+        parts.append(rod(label+'_flap_pin',[sign*64,-48,8],[sign*64,-22,8],3,root.name,7850))
+        parts.append(Part(name=label+'_gimbal_arm',size=[14,6,6],position=[sign*7,0,0],parent=hub.name,density=1330,motor='None',collision='Auto',color=GREEN))
+        parts.append(rod(label+'_pitch_pin',[0,0,0],[sign*30,0,0],3,hub.name,7850))
+        pitch=Part(name=label+'_wing_pitch',size=[10,10,6],position=[sign*20,0,0],pivot=[-sign*4,0,0],parent=hub.name,joint='Hinge',axis='X',limits=[-80,0],motor='Position',servo=deepcopy(pitch_servo),torque=.04,kp=.3,kv=.003,damping=.000001,armature=.000001,density=1330,color=GREEN,aero={'area_m2':.0001,'normal_coefficient':1.4,'upstroke_ratio':1.,'axis':'Z','flap_hz':2.,'amplitude_deg':-75,'phase_deg':0,'waveform':'FeatherSine','startup_delay_s':.75,'ramp_s':1.5})
+        parts.append(bored(pitch,3.2,'X'))
+        for child in original_children
+        {
+            child.parent=pitch.name
+            if child.shape=='Cylinder'
+            {
+                child.position[2]=-child.size[0]/2
+            }
+        }
+    }
+    parts.append(Part(name='controller_mount',size=[18,25,3],position=[0,-20,5],parent=root.name,density=155,motor='None',color=TAN))
+    for name,start,foot in [('left',[-16,-70,4],[-55,-70,-280]),('right',[16,-70,4],[55,-70,-280]),('rear',[0,100,0],[0,145,-280])]
+    {
+        parts.append(rod(name+'_landing_leg',start,foot,2,root.name))
+        parts.append(Part(name=name+'_ground_pad',shape='Sphere',size=[6,6,6],position=foot,parent=root.name,density=1100,motor='None',color=GREEN,friction=[.8,.005,.0001]))
+    }
+    return parts
+}
+
+
+def connection_report(parts,tolerance=.16,root_name='fuselage_balsa_keel')
+{
+    from model import solid,world_matrix
+    from build123d import Location,Extrinsic
+    shapes=[]
+    for p in parts
+    {
+        m=world_matrix(p,parts)
+        shapes.append(solid(p).moved(Location(m[:3,3].tolist(),Rotation.from_matrix(m[:3,:3]).as_euler('xyz',degrees=True).tolist(),ordering=Extrinsic.XYZ)))
+    }
+    bounds=[(np.array(tuple(s.bounding_box().min)),np.array(tuple(s.bounding_box().max))) for s in shapes]
+    edges=[]
+    for i in range(len(parts))
+    {
+        for j in range(i)
+        {
+            if np.any(bounds[i][0]>bounds[j][1]+tolerance) or np.any(bounds[j][0]>bounds[i][1]+tolerance)
+            {
+                continue
+            }
+            if shapes[i].distance_to(shapes[j])<=tolerance
+            {
+                edges.append((i,j))
+            }
+        }
+    }
+    reached={next(i for i,p in enumerate(parts) if p.name==root_name)}
+    while True
+    {
+        before=set(reached)
+        for i,j in edges
+        {
+            if i in reached or j in reached
+            {
+                reached.update([i,j])
+            }
+        }
+        if reached==before
+        {
+            break
+        }
+    }
+    return {'parts':len(parts),'reachable_from_frame':len(reached),'disconnected':[p.name for i,p in enumerate(parts) if i not in reached],'clearance_tolerance_mm':tolerance,'note':'Static CAD distance graph includes 0.1 mm pin/bore running clearance. It is not structural FEA or manufacturing validation.'}
+}
+
+def write(directory)
+{
+    directory=Path(directory)
+    directory.mkdir(parents=True,exist_ok=True)
+    parts=build_connected()
+    save_project(directory/'ConnectedOrnithopter.mjcad',parts)
+    report=connection_report(parts)
+    (directory/'connectivity.json').write_text(json.dumps(report,indent=2))
+    if report['disconnected']
+    {
+        raise ValueError('Disconnected CAD components: '+str(report['disconnected']))
+    }
+    export_model(directory,parts)
+    (directory/'design-notes.json').write_text(json.dumps({'prototype':True,'flight_validated':False,'changes':['Bored clevises and explicit steel flap/pitch pins','Two physically located hinges at each root; continuous frame-to-wing load path','Sails meet the ribs rather than floating above them','Massed three-point landing gear starts on the floor','0.75 s settling delay and 1.5 s smooth actuator ramp','Synchronized sinusoidal flapping and smooth feathering; no random policy playback'],'limitations':['Ideal pin bearings and rigid members; strength, tolerances and actuator thermal behavior require hardware checks','Normal-pressure sail model remains uncalibrated','Servo housing mass is still included by ServoPhysics export, in addition to the explicit structure'],'ground_takeoff_claim':False},indent=2))
+    return parts
+}
+if __name__=='__main__'
+{
+    import sys
+    write(sys.argv[1])
+}

@@ -1,0 +1,33 @@
+"""Relocate the existing battery to balance air moments, adding support-beam mass."""
+from pathlib import Path
+import json
+from model import Part,load_project,save_project,export_model
+from prototype_validation import validate
+
+def main()
+{
+    out=Path('outputs/Prototype-Trim')
+    out.mkdir(parents=True,exist_ok=True)
+    values=json.loads(Path('outputs/Prototype-Feather90/gait-results.json').read_text())['best']['parameters']
+    reports=[]
+    for battery_y in [-300,-450,-600]
+    {
+        parts=load_project('outputs/Prototype-Clearance-Rearmount/100/candidate.mjcad')
+        battery=next(p for p in parts if p.name=='battery_ESTIMATE_12g')
+        battery.position[1]=battery_y
+        parts.append(Part(name='carbon_battery_support_beam',parent='fuselage_balsa_keel',shape='Cylinder',size=[1.5,1.5,abs(battery_y)],position=[0,battery_y/2,battery.position[2]],rotation=[90,0,0],density=1330,motor='None',collision='Auto',material={'note':'Explicit solid carbon beam mass. Battery remains 12 g; capacity/current and beam stiffness require measurements.'}))
+        folder=out/str(abs(battery_y))
+        folder.mkdir(parents=True,exist_ok=True)
+        save_project(folder/'candidate.mjcad',parts)
+        export_model(folder/'free-body',parts)
+        result=validate(folder/'free-body',values)
+        result.update(battery_y_mm=battery_y,folder=str(folder))
+        reports.append(result)
+        (out/'results.json').write_text(json.dumps(reports,indent=2))
+        print(json.dumps({'battery_y_mm':battery_y,'durations_s':[x['duration_s'] for x in result['trials']],'passed':result['simulation_success']}),flush=True)
+    }
+}
+if __name__=='__main__'
+{
+    main()
+}

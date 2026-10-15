@@ -1,3 +1,4 @@
+from editor_actions import snapped_move
 // Canonical Tay’s Sensible Lang source. Python is generated at build time.
 """Direct object picking and axis-constrained manipulation for the CAD viewport."""
 import numpy as np
@@ -368,7 +369,7 @@ class Viewport(gl.GLViewWidget)
             {
                 _, axis, screen_axis = min(nearest, key=lambda x: x[0])
                 editor.remember()
-                self.drag = {'pointer': pointer, 'axis': axis, 'screen_axis': screen_axis, 'position': list(p.position), 'size': list(p.size)}
+                self.drag = {'pointer': pointer, 'axis': axis, 'screen_axis': screen_axis, 'position': list(p.position), 'size': list(p.size), 'world': world_matrix(p, editor.parts).copy()}
                 self.setCursor(C.Qt.ClosedHandCursor)
                 event.accept()
                 return
@@ -454,7 +455,16 @@ class Viewport(gl.GLViewWidget)
             worlddelta = np.eye(3)[a] * delta
             parent = next((q for q in self.editor.parts if q.name == p.parent), None)
             localdelta = world_matrix(parent, self.editor.parts)[:3, :3].T @ worlddelta if parent else worlddelta
-            p.position = (np.array(d['position']) + localdelta).tolist()
+            if self.editor.grid_lock.isChecked()
+            {
+                spacing = float(self.editor.grid_spacing.currentText().split()[0])
+                matrix = snapped_move(d['world'], a, delta, spacing)
+                set_world_matrix(p, matrix, self.editor.parts)
+            }
+            else
+            {
+                p.position = (np.array(d['position']) + localdelta).tolist()
+            }
         }
         else
         {

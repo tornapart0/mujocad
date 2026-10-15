@@ -1,0 +1,281 @@
+from copy import deepcopy
+from pathlib import Path
+import time, uuid, json
+import numpy as np
+from PySide6 import QtWidgets as W
+from servo_models import PRESETS
+from physics_ui import dialog, number, vector, commit
+from build_materials import PRESETS as MATERIALS
+from servo_test import test_robot
+
+def apply_servo(part, spec)
+{
+    if part.joint != 'Hinge'
+    {
+        raise ValueError('Select a hinge-driven part, or use Rig to add its hinge first.')
+    }
+    part.servo = deepcopy(spec)
+    part.motor = spec['kind']
+    part.gear = 1
+    part.torque = spec['stall_nm'] * spec['voltage'] / spec['rated_voltage']
+    if part.motor == 'Position'
+    {
+        half = spec['travel_deg'] / 2
+        part.limits = [max(part.limits[0], -half), min(part.limits[1], half)]
+        part.unlimited = False
+        if part.limits[0] >= part.limits[1]
+        {
+            part.limits = [-half, half]
+        }
+        part.control = float(np.clip(part.control, *part.limits))
+    }
+    else
+    {
+        part.unlimited = True
+        speed = 60 / spec['seconds_60']
+        part.limits = [-speed, speed]
+
+    }
+}
+def edit_servo(editor)
+{
+    rows = editor.selected_rows()
+    if not rows
+    {
+        return
+    }
+    part = editor.parts[editor.selected]
+    current = deepcopy(part.servo or PRESETS['Micro positional · illustrative'])
+    window, form, layout = dialog(editor, 'Servo weight, strength and movement')
+    preset = W.QComboBox()
+    preset.addItems([*PRESETS, 'Custom'])
+    preset.setCurrentText(current.get('profile', 'Custom'))
+    form.addRow('Servo model', preset)
+    fields = {}
+    for key, label, lo, hi, decimals in [('mass_g', 'Housing weight · g', 0, 10000, 3), ('stall_nm', 'Stall torque · N·m', 1e-06, 1000, 5), ('continuous_nm', 'Continuous torque · N·m', 1e-06, 1000, 5), ('seconds_60', 'No-load speed · seconds per 60°', 0.0001, 100, 4), ('rated_voltage', 'Specification voltage · V', 0.1, 100, 2), ('voltage', 'Supply voltage · V', 0.1, 100, 2), ('travel_deg', 'Total positional travel · degrees', 1, 3600, 2), ('rotor_inertia', 'Reflected rotor inertia · kg·m²', 0, 100, 8)]
+    {
+        fields[key] = number(form, label, current[key], lo, hi, decimals)
+    }
+    dims = vector(form, 'Housing dimensions · mm', current['housing_mm'], 0.001, 10000)
+    kind = W.QComboBox()
+    kind.addItems(['Position', 'Velocity'])
+    kind.setCurrentText(current['kind'])
+    form.addRow('Servo movement', kind)
+    mount = W.QComboBox()
+    mount.addItems(['Parent', 'Moving part'])
+    mount.setCurrentText(current['mount'])
+    form.addRow('Housing mounted on', mount)
+    duty = W.QCheckBox('Use continuous torque limit')
+    duty.setChecked(current['continuous_duty'])
+    form.addRow(duty)
+    source = W.QLineEdit(current.get('source', 'Illustrative preset'))
+    form.addRow('Specification reference', source)
+    notes = W.QLabel()
+    notes.setWordWrap(True)
+    form.addRow(notes)
+    assumed = [current.get('continuous_rating_assumed', True)]
+
+    def choose(name)
+    {
+        if name not in PRESETS
+        {
+            return
+        }
+        s = PRESETS[name]
+        for key, spin in fields.items()
+        {
+            spin.setValue(s[key])
+        }
+        for spin, value in zip(dims, s['housing_mm'])
+        {
+            spin.setValue(value)
+        }
+        kind.setCurrentText(s['kind'])
+        mount.setCurrentText(s['mount'])
+        duty.setChecked(s['continuous_duty'])
+        source.setText(s.get('source', 'Illustrative preset'))
+        assumed[0] = s.get('continuous_rating_assumed', True)
+        notes.setText(s.get('notes', 'Generic illustrative specs.') + ' Continuous torque defaults to an assumed 30% of stall if no rating is published. Controller gains and rotor inertia are not measured. Housing weight is added at the joint, in addition to the CAD part mass.')
+    }
+    preset.currentTextChanged.connect(choose)
+    if preset.currentText() in PRESETS
+    {
+        choose(preset.currentText())
+    }
+    clear = W.QPushButton('Remove servo model')
+    removed = [False]
+    clear.clicked.connect(lambda: (removed.__setitem__(0, True), window.accept()))
+    form.addRow(clear)
+    if window.exec() != W.QDialog.Accepted
+    {
+        return
+    }
+    parts = deepcopy(editor.parts)
+    try
+    {
+        for row in rows
+        {
+            if removed[0]
+            {
+                parts[row].servo = {}
+            }
+            else
+            {
+                spec = {key: spin.value() for key, spin in fields.items()}
+                spec.update(profile=preset.currentText(), kind=kind.currentText(), mount=mount.currentText(), housing_mm=[s.value() for s in dims], continuous_duty=duty.isChecked(), source=source.text(), continuous_rating_assumed=assumed[0])
+                apply_servo(parts[row], spec)
+            }
+        }
+    }
+    except Exception as error
+    {
+        editor.error(str(error))
+        return
+    }
+    commit(editor, parts, 'Servo specs and added housing mass saved · run Servo and flight test to compare loads')
+
+}
+def edit_material(editor)
+{
+    rows = editor.selected_rows()
+    if not rows
+    {
+        return
+    }
+    window, form, layout = dialog(editor, 'Build material · mass and inertia')
+    preset = W.QComboBox()
+    preset.addItems([*MATERIALS, 'Custom'])
+    form.addRow('Material', preset)
+    density = number(form, 'Solid / effective density · kg/m³', editor.parts[editor.selected].density, 1, 25000, 2)
+    keep = W.QCheckBox('Keep existing mass override (if set)')
+    keep.setChecked(True)
+    form.addRow(keep)
+    note = W.QLabel()
+    note.setWordWrap(True)
+    form.addRow(note)
+
+    def choose(name)
+    {
+        if name in MATERIALS
+        {
+            density.setValue(MATERIALS[name]['density'])
+            note.setText(MATERIALS[name]['note'] + ' Mass is based on actual CAD volume. No bending, structural failure or infill distribution is simulated. Use a measured mass override for printed or hollow parts.')
+        }
+    }
+    preset.currentTextChanged.connect(choose)
+    preset.setCurrentText(editor.parts[editor.selected].material.get('name', 'Custom'))
+    if window.exec() != W.QDialog.Accepted
+    {
+        return
+    }
+    parts = deepcopy(editor.parts)
+    for row in rows
+    {
+        parts[row].density = density.value()
+        parts[row].material = {'name': preset.currentText(), 'density_kg_m3': density.value(), 'source': MATERIALS.get(preset.currentText(), {}).get('source', 'User-entered')}
+        if not keep.isChecked()
+        {
+            parts[row].mass = 0
+        }
+    }
+    commit(editor, parts, 'Material applied · existing measured mass overrides take priority when retained')
+
+}
+def run_servo_test(editor)
+{
+    window, form, layout = dialog(editor, 'Servo and wing-only flight test')
+    duration = number(form, 'Test duration · seconds', 3, 0.5, 15, 1)
+    step = number(form, 'Step target for non-flapping servos · degrees', 30, -180, 180, 1)
+    label = W.QLabel('Configured wings keep their flap settings. The test uses the current model as saved, including servo weight. A simulated result is not a calibrated real-world flight prediction.')
+    label.setWordWrap(True)
+    form.addRow(label)
+    if window.exec() != W.QDialog.Accepted
+    {
+        return
+    }
+    seconds = duration.value()
+    step_target = step.value()
+    snapshot = deepcopy(editor.parts)
+    folder = Path(__file__).parent / 'ServoTests' / str(time.time_ns())
+
+    def done(result)
+    {
+        report = W.QDialog(editor)
+        report.setWindowTitle('Servo and flight results')
+        report.resize(800, 620)
+        box = W.QVBoxLayout(report)
+        title = W.QLabel(f"{result['simulation_outcome']}\nRobot: {result['robot_mass_g']:.1f} g · servos add {result['added_servo_mass_g']:.1f} g\nWeight: {result['weight_n']:.3f} N · estimated mean wing force: {result['average_wing_upward_force_n']:.3f} N\nThrusters: {result['thruster_count']} · height change: {result['height_change_m'] * 1000:.1f} mm")
+        title.setWordWrap(True)
+        box.addWidget(title)
+        text = W.QPlainTextEdit()
+        text.setReadOnly(True)
+        text.setPlainText(json.dumps(result, indent=2))
+        box.addWidget(text)
+        close = W.QPushButton('Close')
+        close.clicked.connect(report.accept)
+        box.addWidget(close)
+        report.exec()
+    }
+    editor.run_job(lambda: test_robot(folder, snapshot, seconds, step_target), done, 'Testing servo loads, wing forces and weight…')
+
+}
+def compare_servos(editor)
+{
+    wing_rows = [i for i, p in enumerate(editor.parts) if p.aero and p.joint == 'Hinge']
+    rows = wing_rows or [i for i in editor.selected_rows() if editor.parts[i].joint == 'Hinge']
+    if not rows
+    {
+        editor.error('Select a hinged part or configure aerodynamic wings before comparing servos.')
+        return
+    }
+    snapshot = deepcopy(editor.parts)
+    folder = Path(__file__).parent / 'ServoTests' / ('comparison_' + str(time.time_ns()))
+    names = [name for name in PRESETS if 'vendor specs' in name or 'kg·cm' in name]
+
+    def work()
+    {
+        results = []
+        for index, name in enumerate(names)
+        {
+            parts = deepcopy(snapshot)
+            for row in rows
+            {
+                apply_servo(parts[row], dict(PRESETS[name], profile=name))
+            }
+            result = test_robot(folder / str(index), parts, 3, 30)
+            result['comparison_profile'] = name
+            results.append(result)
+        }
+        (folder / 'comparison.json').write_text(json.dumps(results, indent=2))
+        return results
+
+    }
+    def done(results)
+    {
+        dialog_ = W.QDialog(editor)
+        dialog_.setWindowTitle('Servo comparison · current robot')
+        dialog_.resize(1050, 550)
+        layout_ = W.QVBoxLayout(dialog_)
+        note = W.QLabel('Same geometry, material and flap command for every row. Servo masses change with the profile. Vendor specifications are not measured torque-speed curves; flight remains uncalibrated.')
+        note.setWordWrap(True)
+        layout_.addWidget(note)
+        table = W.QTableWidget(len(results), 7)
+        table.setHorizontalHeaderLabels(['Servo profile', 'Servo g', 'Robot g', 'Weight N', 'Wing force N', 'Mean error °', 'Simulation outcome'])
+        for row, r in enumerate(results)
+        {
+            values = [r['comparison_profile'], f"{r['added_servo_mass_g']:.1f}", f"{r['robot_mass_g']:.1f}", f"{r['weight_n']:.3f}", f"{r['average_wing_upward_force_n']:.3f}", f"{np.mean([s['mean_tracking_error_deg'] for s in r['servos']]):.1f}", r['simulation_outcome']]
+            for col, value in enumerate(values)
+            {
+                table.setItem(row, col, W.QTableWidgetItem(value))
+            }
+        }
+        table.setEditTriggers(W.QAbstractItemView.NoEditTriggers)
+        table.resizeColumnsToContents()
+        layout_.addWidget(table)
+        close = W.QPushButton('Close')
+        close.clicked.connect(dialog_.accept)
+        layout_.addWidget(close)
+        dialog_.exec()
+    }
+    editor.run_job(work, done, 'Comparing 5 g, 5 kg·cm, 10 kg·cm and 20 kg·cm servo profiles…')
+}

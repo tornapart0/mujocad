@@ -1,0 +1,120 @@
+import sys, tempfile, json
+from pathlib import Path
+import numpy as np, mujoco
+from copy import deepcopy
+from model import Part, export_model, load_project, save_project, world_matrix
+from physics_features import PRESETS, rig_parts
+from flight_physics import FlightPhysics
+with tempfile.TemporaryDirectory() as temp
+{
+    root = Path(temp)
+    for preset, settings in PRESETS.items()
+    {
+        p = Part('probe', size=[20, 20, 20], position=[0, 0, 1000], joint='Free', collision='None', environment=dict(settings, preset=preset))
+        path, model = export_model(root / preset.replace(' · ', '_'), [p])
+        assert np.allclose(model.opt.gravity, settings['gravity'])
+        assert np.isclose(model.opt.density, settings['density'])
+        assert (mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_GEOM, 'floor') >= 0) == settings['ground']
+        data = mujoco.MjData(model)
+        data.qvel[0] = 0.1
+        for _ in range(50)
+        {
+            mujoco.mj_step(model, data)
+        }
+        assert np.isfinite(data.qpos).all()
+        if preset == 'Space · microgravity'
+        {
+            assert np.isclose(data.qvel[0], 0.1) and np.isclose(data.qpos[2], 1)
+        }
+    }
+    print('PASS: Earth, Moon, Mars, Space and water options; free drift has no gravity or floor')
+    parent = Part('parent', position=[10, 20, 30], rotation=[20, 30, 40])
+    child = Part('child', position=[90, 40, 70], rotation=[10, 15, 20])
+    before = world_matrix(child, [parent, child])
+    rig = rig_parts([parent, child], 'parent', 'child', 'Hinge', 'Y', [30, 20, 40], 'Position')
+    assert np.allclose(world_matrix(rig[1], rig), before)
+    assert np.allclose((before @ np.r_[rig[1].pivot, 1])[:3], [30, 20, 40])
+    try
+    {
+        rig_parts(rig, 'child', 'parent', 'Hinge', 'Z', [0, 0, 0], 'None')
+        raise AssertionError('cycle accepted')
+    }
+    except ValueError
+    {
+        pass
+    }
+    print('PASS: joint rig preserves world pose and rejects parent cycles')
+    base = Part('anchor', size=[10, 10, 10], collision='None')
+    slider = Part('slider', size=[20, 10, 10], position=[100, 0, 0], parent='anchor', joint='Slide', axis='X', motor='None', limits=[-90, 10], collision='None', damping=0.02)
+    cable = {'name': 'pull_cable', 'points': [{'body': 'anchor', 'position': [0, 0, 0]}, {'body': 'slider', 'position': [0, 0, 0]}], 'rest_mm': 100, 'stiffness': 0, 'damping': 0.01, 'force': 2, 'kp': 100, 'target': 1, 'mode': 'Pull force'}
+    base.tendons = [cable]
+    path, model = export_model(root / 'tendon', [base, slider])
+    data = mujoco.MjData(model)
+    mujoco.mj_forward(model, data)
+    initial = data.ten_length[0]
+    data.ctrl[model.actuator('pull_cable_tendon_motor').id] = -1
+    for _ in range(100)
+    {
+        mujoco.mj_step(model, data)
+    }
+    assert data.ten_length[0] < initial - 0.01, (initial, data.ten_length[0])
+    assert np.isfinite(data.qpos).all()
+    for mode in ['Passive spring', 'Length servo']
+    {
+        base.tendons[0]['mode'] = mode
+        base.tendons[0]['target'] = 70
+        path, m = export_model(root / mode, [base, slider])
+        assert m.ntendon == 1
+    }
+    print('PASS: routed tendon contracts through a pulling actuator; passive and length-servo modes compile')
+    body = Part('thruster_test', size=[20, 20, 20], position=[0, 0, 500], joint='Free', mass=0.1, thruster={'axis': 'Z', 'max_force': 5, 'initial': 2})
+    path, m = export_model(root / 'thrust', [body])
+    d = mujoco.MjData(m)
+    d.ctrl[m.actuator('thruster_test_thruster').id] = 2
+    for _ in range(100)
+    {
+        mujoco.mj_step(m, d)
+    }
+    assert d.qpos[2] > 0.5 and d.qvel[2] > 0
+    print('PASS: upward thrust lifts a free body against Earth gravity')
+    wing = Part('wing', size=[150, 80, 1], position=[0, 0, 500], joint='Free', collision='None', aero={'area_m2': 0.012, 'normal_coefficient': 1.4, 'upstroke_ratio': 0.15, 'axis': 'Z', 'flap_hz': 0, 'amplitude_deg': 35, 'phase_deg': 0})
+    path, m = export_model(root / 'wing', [wing])
+    d = mujoco.MjData(m)
+    flight = FlightPhysics(m, json.loads(path.with_name('physics.json').read_text()))
+    d.qvel[2] = -1
+    mujoco.mj_forward(m, d)
+    flight.apply(d)
+    down = d.xfrc_applied[m.body('wing').id, 2]
+    assert down > 0
+    d.qvel[2] = 1
+    mujoco.mj_forward(m, d)
+    flight.apply(d)
+    up = d.xfrc_applied[m.body('wing').id, 2]
+    assert np.isclose(-up / down, 0.15)
+    flight.environment['density'] = 0
+    flight.apply(d)
+    assert np.allclose(d.xfrc_applied, 0)
+    print('PASS: downstroke makes upward wing force, feathering reduces upstroke force, vacuum produces no aerodynamic force')
+    parts = load_project(Path(__file__).parents[1] / 'Examples/OrnithopterFlight.mjcad')
+    path, m = export_model(root / 'ornithopter', parts)
+    d = mujoco.MjData(m)
+    flight = FlightPhysics(m, json.loads(path.with_name('physics.json').read_text()))
+    for control in json.loads(path.with_name('controls.json').read_text())
+    {
+        d.ctrl[m.actuator(control['name']).id] = control['initial']
+    }
+    for _ in range(250)
+    {
+        flight.apply(d, auto_flap=True)
+        mujoco.mj_step(m, d)
+    }
+    assert np.isfinite(d.qpos).all() and mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, 'flight_body_thruster') == -1
+    left = m.actuator('left_wing_motor').id
+    right = m.actuator('right_wing_motor').id
+    assert np.isclose(d.ctrl[left], -d.ctrl[right])
+    save_project(root / 'saved.mjcad', parts)
+    again = load_project(root / 'saved.mjcad')
+    assert again[0].thruster == parts[0].thruster and again[1].aero == parts[1].aero
+    print('PASS: wing-only ornithopter flaps with mirrored targets without a thruster; flight settings survive save/load')
+}
+print('ALL PHYSICS TESTS PASSED')

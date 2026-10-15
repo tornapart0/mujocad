@@ -1,0 +1,49 @@
+"""Unsupported ground trial in the app's Create Training environment, without a fixture."""
+from pathlib import Path
+import json,math,sys
+import numpy as np
+from ground_flight_training import GroundFlightTask
+
+def run(folder)
+{
+    folder=Path(folder).resolve()
+    capacity=json.loads((folder/'lift-screen.json').read_text())
+    frequency,profile,trim=capacity['best_gait']
+    config=json.loads((folder/'bench-task.json').read_text())
+    config['randomize_start']=True
+    task=folder/'ground-gait-task.json'
+    task.write_text(json.dumps(config,indent=2))
+    rows=[]
+    for seed in [401,502,603]
+    {
+        env=GroundFlightTask(task)
+        obs,info=env.reset(seed=seed)
+        assert env.model.neq==3,'No welded fixture is permitted in this ground trial'
+        index=env.model.joint('right_wing_rocker_joint').dofadr[0]
+        maximum_height=0.
+        longest_airborne=0.
+        maximum_drift=0.
+        for _ in range(env.max_steps)
+        {
+            pitch=trim if profile=='constant' else .5*trim*(1+math.tanh(float(env.data.qvel[index]))*(1 if profile=='feather_upstroke' else -1))
+            action=np.array([frequency/4-1,pitch/env.incidence_limit,pitch/env.incidence_limit,0.],dtype=np.float32)
+            obs,reward,terminated,truncated,info=env.step(action)
+            maximum_height=max(maximum_height,float(env.data.qpos[env.q+2]-env.base_height))
+            longest_airborne=max(longest_airborne,float(env.airborne))
+            maximum_drift=max(maximum_drift,float(np.linalg.norm(env.data.qpos[env.q:env.q+2]-env.base_xy)))
+            if terminated or truncated
+            {
+                break
+            }
+        }
+        rows.append({'seed':seed,'simulated_seconds':float(env.data.time),'maximum_height_gain_m':maximum_height,'maximum_horizontal_drift_m':maximum_drift,'longest_qualifying_airborne_s':longest_airborne,'is_success':bool(info['is_success']),'final_info':info})
+    }
+    report={'protocol':'Zero-velocity floor start, unchanged free chassis, Earth gravity, three mechanical connect constraints and no weld fixture. Best capacity-screen gait applied as a heuristic through the ordinary Create Training environment and its action smoothing and real actuator limits. This is an untrained controller evaluation, not a PPO training result.','controller':{'frequency_hz':frequency,'profile':profile,'trim_deg':trim},'all_seeds_passed':all(r['is_success'] for r in rows),'physical_flight_validated':False,'rows':rows}
+    (folder/'ground-gait-evaluation.json').write_text(json.dumps(report,indent=2))
+    print(json.dumps(report,indent=2))
+    return report
+}
+if __name__=='__main__'
+{
+    run(sys.argv[1])
+}

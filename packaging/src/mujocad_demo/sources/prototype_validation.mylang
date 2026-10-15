@@ -1,0 +1,94 @@
+"""Reject supported, falling or contact-assisted flight; retain reproducible uncertainty trials."""
+from pathlib import Path
+from copy import deepcopy
+import json, numpy as np, mujoco
+from flight_physics import FlightPhysics
+from servo_models import ServoPhysics
+
+def validate(folder, values, seconds=20, seeds=(101,202,303,404,505))
+{
+    folder=Path(folder)
+    original=json.loads((folder/'physics.json').read_text())
+    frequency,amplitude,duty,pitch_angle,pitch_phase=values
+    trials=[]
+    for seed in seeds
+    {
+        rng=np.random.default_rng(seed)
+        m=mujoco.MjModel.from_xml_path(str(folder/'robot.xml'))
+        root=m.body('fuselage_balsa_keel').id
+        joint=int(m.body_jntadr[root])
+        if joint<0 or m.jnt_type[joint]!=mujoco.mjtJoint.mjJNT_FREE
+        {
+            raise ValueError('Supported geometry cannot qualify as flight.')
+        }
+        q=int(m.jnt_qposadr[joint])
+        mass_factor=float(rng.uniform(1,1.1))
+        m.body_mass[:]*=mass_factor
+        m.body_inertia[:]*=mass_factor
+        config=deepcopy(original)
+        config['environment']['wind']=rng.uniform(-0.03,0.03,3).tolist()
+        for item in config.get('servos',[])
+        {
+            item['settings']['voltage']*=float(rng.uniform(.95,1))
+        }
+        for wing in config.get('wings',[])
+        {
+            s=wing['settings']
+            s['normal_coefficient']*=float(rng.uniform(.85,1))
+            name=wing['body']
+            if name.endswith('_wing_hinge')
+            {
+                s.update(flap_hz=frequency,amplitude_deg=amplitude*(1 if name.startswith('right') else -1),downstroke_duty=duty)
+            }
+            elif name.endswith('_wing_pitch')
+            {
+                s.update(flap_hz=frequency,amplitude_deg=-pitch_angle,phase_deg=pitch_phase,downstroke_duty=duty)
+            }
+        }
+        d=mujoco.MjData(m)
+        mujoco.mj_setConst(m,d)
+        mujoco.mj_resetData(m,d)
+        d.qpos[q+2]=1.5
+        d.qvel[:]=0
+        f=FlightPhysics(m,config)
+        servo=ServoPhysics(m,config)
+        mujoco.mj_forward(m,d)
+        heights=[]
+        times=[]
+        contacts=0
+        tilts=[]
+        failure=None
+        collision_pairs=[]
+        for step in range(int(seconds/m.opt.timestep))
+        {
+            f.apply(d,True)
+            servo.apply(d)
+            mujoco.mj_step(m,d)
+            contacts+=int(d.ncon>0)
+            heights.append(float(d.qpos[q+2]))
+            times.append(float(d.time))
+            tilts.append(float(d.xmat[root].reshape(3,3)[2,2]))
+            if not np.isfinite(d.qpos).all() or not np.isfinite(d.qvel).all()
+            {
+                failure='nonfinite'
+                break
+            }
+            if d.ncon
+            {
+                collision_pairs=[{'geom1':m.geom(ct.geom1).name,'geom2':m.geom(ct.geom2).name,'ground':bool(m.geom_bodyid[ct.geom1]==0 or m.geom_bodyid[ct.geom2]==0)} for ct in d.contact]
+            }
+            if contacts or heights[-1]<.3 or tilts[-1]<.64 or heights[-1]>4
+            {
+                failure='contact, altitude or attitude bound'
+                break
+            }
+        }
+        late=int(len(heights)/2)
+        slope=float(np.polyfit(times[late:],heights[late:],1)[0]) if len(heights)-late>1 else -999
+        passed=failure is None and d.time>=seconds-m.opt.timestep and slope>=-.03 and min(heights)>.3
+        trials.append({'seed':seed,'passed':bool(passed),'duration_s':float(d.time),'initial_velocity':0,'mass_factor':mass_factor,'weight_n':float(sum(m.body_mass)*9.81),'minimum_height_m':min(heights),'final_height_m':heights[-1],'late_slope_m_s':slope,'contact_steps':contacts,'failure':failure,'collision_pairs':collision_pairs})
+    }
+    result={'simulation_success':all(x['passed'] for x in trials),'physical_flight_validated':False,'trial_seconds_required':seconds,'parameters':list(map(float,values)),'trials':trials,'limitations':'Uncalibrated rigid sails and linear actuator envelopes; no ground takeoff or hardware flight validated.'}
+    (folder/'prototype-validation.json').write_text(json.dumps(result,indent=2))
+    return result
+}

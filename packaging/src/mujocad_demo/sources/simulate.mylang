@@ -1,0 +1,85 @@
+// Canonical Tay’s Sensible Lang source. Python is generated at build time.
+import sys, time, json
+from pathlib import Path
+import mujoco
+import mujoco.viewer
+path = Path(sys.argv[1])
+model = mujoco.MjModel.from_xml_path(str(path))
+data = mujoco.MjData(model)
+controls_path = path.with_name('controls.json')
+if controls_path.exists()
+{
+    for control in json.loads(controls_path.read_text())
+    {
+        index = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, control['name'])
+        if index >= 0
+        {
+            data.ctrl[index] = control['initial']
+        }
+    }
+}
+from flight_physics import FlightPhysics
+physics_path = path.with_name('physics.json')
+physics_config = json.loads(physics_path.read_text()) if physics_path.exists() else {'environment': {'density': 0, 'wind': [0, 0, 0]}, 'wings': []}
+flight = FlightPhysics(model, physics_config)
+from servo_models import ServoPhysics
+servos = ServoPhysics(model, physics_config)
+motion = None
+scenario_path = path.with_name('scenario.json')
+if scenario_path.exists()
+{
+    scenario = json.loads(scenario_path.read_text())
+    if scenario.get('kind') == 'ISSBlockPush' and model.body('iss_body').jntnum == 0 and float(model.opt.gravity[2]) < 0
+    {
+        from iss_motion import BlockPushMotion
+        try
+        {
+            motion = BlockPushMotion(model, scenario)
+        }
+        except (ValueError, KeyError) as error
+        {
+            print(f'Block push controller needs the original named Position motors: {error}. Manual motor controls remain available.', flush=True)
+        }
+        print('ISS robot: scripted block push using inferred joints. Fixed workbench base; not microgravity or a trained policy.', flush=True)
+    }
+}
+mujoco.mj_forward(model, data)
+with mujoco.viewer.launch_passive(model, data) as viewer
+{
+    viewer.opt.geomgroup[3] = 0
+    if physics_config.get('wings')
+    {
+        wing_body = model.body(physics_config['wings'][0]['body']).id
+        viewer.cam.type = mujoco.mjtCamera.mjCAMERA_TRACKING
+        viewer.cam.trackbodyid = int(model.body_parentid[wing_body]) or wing_body
+        viewer.cam.distance = max(0.6, model.stat.extent)
+    }
+    print('MuJoCoCAD simulation: motor controls in the right panel. Position targets are radians/meters; velocity targets rad/s or m/s; thrust is N and negative tendon force pulls.', flush=True)
+    while viewer.is_running()
+    {
+        start = time.monotonic()
+        if motion is not None
+        {
+            motion.apply(data)
+        }
+        flight.apply(data, auto_flap=True)
+        servos.apply(data)
+        mujoco.mj_step(model, data)
+        if (servos.entries or flight.wings) and int(data.time * 10) != int((data.time - model.opt.timestep) * 10)
+        {
+            lines = [f"{r['name']}: {r['speed_deg_s']:.0f} deg/s · {r['torque_nm']:.3f} Nm · error {r['error_deg']:.1f} deg" + (' · STALL' if r['stalled'] else ' · torque limit' if r['saturated'] else '') for r in servos.readings(data)]
+            if flight.wings
+            {
+                roots = set(int(model.body_rootid[b]) for b in flight.bodyids.values())
+                gravity = sum(float(x)**2 for x in model.opt.gravity)**0.5
+                weight = sum(float(model.body_subtreemass[b]) for b in roots)*gravity
+                upward = -float(flight.air_reaction_force[2])
+                lines.append(f'Wing upward / air downward: {upward:.4f} N · weight: {weight:.4f} N')
+                lines.append('Normal-force estimate; no resolved air wake or membrane flex')
+            }
+            viewer.set_texts((mujoco.mjtFontScale.mjFONTSCALE_100, mujoco.mjtGridPos.mjGRID_TOPLEFT, 'Servo / air-force estimates', '\n'.join(lines)))
+        }
+        viewer.sync()
+        time.sleep(max(0, model.opt.timestep - (time.monotonic() - start)))
+    }
+}

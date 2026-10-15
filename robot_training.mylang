@@ -6,10 +6,22 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 import mujoco
+from flight_physics import FlightPhysics
+from servo_models import ServoPhysics
 
 class RobotTask(gym.Env)
 {
     metadata = {'render_modes': []}
+
+    def __new__(cls, config_path)
+    {
+        if cls is RobotTask and json.loads(Path(config_path).read_text()).get('goal')=='ground_flight'
+        {
+            from ground_flight_training import GroundFlightTask
+            return GroundFlightTask(config_path)
+        }
+        return super().__new__(cls)
+    }
 
     def __init__(self, config_path)
     {
@@ -28,6 +40,10 @@ class RobotTask(gym.Env)
             }
         }
         self.model = mujoco.MjModel.from_xml_path(str(self.path.parent / c.get('model', 'robot.xml')))
+        physics_path = self.path.parent / 'physics.json'
+        physics_config = json.loads(physics_path.read_text()) if physics_path.exists() else {'environment': {'density': 0, 'wind': [0, 0, 0]}, 'wings': []}
+        self.flight = FlightPhysics(self.model, physics_config)
+        self.servos = ServoPhysics(self.model, physics_config)
         self.data = mujoco.MjData(self.model)
         self.ids = np.array([self._id(mujoco.mjtObj.mjOBJ_ACTUATOR, name) for name in c['motors']], dtype=int)
         if not len(self.ids) or len(set(self.ids)) != len(self.ids)
@@ -222,7 +238,12 @@ class RobotTask(gym.Env)
         action = np.clip(action, -1, 1)
         self.data.ctrl[self.ids] = self.low + (action + 1) * 0.5 * (self.high - self.low)
         old_time = float(self.data.time)
-        mujoco.mj_step(self.model, self.data, nstep=self.frames)
+        for _ in range(self.frames)
+        {
+            self.flight.apply(self.data, auto_flap=False)
+            self.servos.apply(self.data)
+            mujoco.mj_step(self.model, self.data)
+        }
         self.elapsed += 1
         finite = bool(np.isfinite(self.data.qpos).all() and np.isfinite(self.data.qvel).all() and (self.data.time >= old_time + 0.5 * self.dt))
         if not finite
@@ -255,16 +276,26 @@ def emit(kind, **values)
 def evaluate(policy, env, episodes=10)
 {
     results = []
+    ground_details=[]
     for i in range(episodes)
     {
         obs, _ = env.reset(seed=1000 + i)
         total = 0.0
         success = False
+        longest_airborne=0.
+        maximum_height=0.
+        maximum_horizontal=0.
         for _ in range(env.max_steps)
         {
             action, _ = policy.predict(obs, deterministic=True)
             obs, r, end, timeout, info = env.step(action)
             total += r
+            if env.config['goal']=='ground_flight'
+            {
+                longest_airborne=max(longest_airborne,float(info['airborne_seconds']))
+                maximum_height=max(maximum_height,float(info['height_gain_m']))
+                maximum_horizontal=max(maximum_horizontal,float(info.get('horizontal_drift_m',0)))
+            }
             if end or timeout
             {
                 success = info['is_success']
@@ -272,8 +303,18 @@ def evaluate(policy, env, episodes=10)
             }
         }
         results.append((total, success))
+        if env.config['goal']=='ground_flight'
+        {
+            ground_details.append({'seed':1000+i,'success':bool(success),'maximum_airborne_seconds':longest_airborne,'maximum_height_gain_m':maximum_height,'maximum_horizontal_drift_m':maximum_horizontal,'simulated_seconds':float(env.data.time),'last_info':info})
+        }
     }
-    return {'evaluation_episodes': episodes, 'success_rate': float(np.mean([x[1] for x in results])), 'mean_reward': float(np.mean([x[0] for x in results]))}
+    report={'evaluation_episodes': episodes, 'success_rate': float(np.mean([x[1] for x in results])), 'mean_reward': float(np.mean([x[0] for x in results]))}
+    if env.config['goal']=='ground_flight'
+    {
+        report.update(ground_start_required=True,airborne_seconds_required=env.required,physical_flight_validated=False)
+        report.update(confined_flight=bool(getattr(env,'confined',False)),held_out_episodes=ground_details)
+    }
+    return report
 
 }
 def main()
@@ -317,7 +358,20 @@ def main()
             {
                 start = time.monotonic()
                 action, _ = policy.predict(obs, deterministic=True)
-                obs, _, end, timeout, _ = env.step(action)
+                obs, _, end, timeout, info = env.step(action)
+                if env.config['goal']=='ground_flight'
+                {
+                    text=f"Ground: Z=0 · Height gain: {info['height_gain_m']:.3f} m\nWing force: {info['wing_upward_force_n']:.3f} N · Weight: {info['weight_n']:.3f} N\nAirborne: {info['airborne_seconds']:.1f} / {env.required:.0f} s · Servo-driven · Uncalibrated model"
+                    if getattr(env,'compact',False)
+                    {
+                        text=text.replace('Servo-driven','Motor-crank drive')
+                    }
+                    if getattr(env,'confined',False)
+                    {
+                        text+=f"\nLaunch drift: {info['horizontal_drift_m']:.3f} m · Confined-flight test"
+                    }
+                    viewer.set_texts((mujoco.mjtFontScale.mjFONTSCALE_100,mujoco.mjtGridPos.mjGRID_TOPLEFT,'Ground takeoff training',text))
+                }
                 viewer.sync()
                 time.sleep(max(0, env.dt - (time.monotonic() - start)))
                 if end or timeout

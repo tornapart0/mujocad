@@ -1,0 +1,166 @@
+{
+  "format": "MuJoCoCAD",
+  "version": 2,
+  "units": "mm",
+  "parts": [
+    {
+      "name": "base",
+      "shape": "Box",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "propeller": {},
+      "servo": {},
+      "material": {},
+      "size": [
+        30,
+        30,
+        10
+      ],
+      "position": [
+        0,
+        0,
+        5
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "sketch_plane": "XY",
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "",
+      "joint": "Fixed",
+      "axis": "Y",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": false,
+      "density": 1000.0,
+      "mass": 0.0,
+      "torque": 2.0,
+      "motor": "Torque",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0.2,
+      "stiffness": 0.0,
+      "springref": 0.0,
+      "frictionloss": 0.0,
+      "armature": 0.001,
+      "collision": "Auto",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1.0
+      ]
+    },
+    {
+      "name": "rotor",
+      "shape": "Propeller",
+      "mesh_file": "",
+      "scenario": {},
+      "environment": {},
+      "tendons": [],
+      "aero": {},
+      "thruster": {},
+      "propeller": {
+        "ct": 0.1,
+        "cp": 0.05,
+        "max_rpm": 20000,
+        "voltage": 11.1,
+        "kv_rpm_v": 2300,
+        "resistance_ohm": 0.15,
+        "current_limit_a": 15,
+        "direction": 1
+      },
+      "servo": {},
+      "material": {},
+      "size": [
+        127,
+        12.7,
+        1.2
+      ],
+      "position": [
+        0,
+        0,
+        30
+      ],
+      "rotation": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "sketch": [],
+      "sketch_plane": "XY",
+      "constraints": [],
+      "boolean": {},
+      "mirror_axes": [],
+      "fillet": 0.0,
+      "pivot": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": "base",
+      "joint": "Hinge",
+      "axis": "Z",
+      "limits": [
+        -90.0,
+        90.0
+      ],
+      "unlimited": true,
+      "density": 1000.0,
+      "mass": 0.0,
+      "torque": 1,
+      "motor": "Torque",
+      "gear": 1.0,
+      "kp": 30.0,
+      "kv": 2.0,
+      "control": 0.0,
+      "damping": 0,
+      "stiffness": 0.0,
+      "springref": 0.0,
+      "frictionloss": 0.0,
+      "armature": 0,
+      "collision": "None",
+      "friction": [
+        0.8,
+        0.005,
+        0.0001
+      ],
+      "collision_tolerance": 2.0,
+      "closure": {},
+      "sensors": true,
+      "color": [
+        0.48,
+        0.66,
+        0.48,
+        1.0
+      ]
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+"""Continuous composite wing prototype. Geometry is explicit; flight is unvalidated."""
+from pathlib import Path
+import json,shutil,math
+import numpy as np
+from model import Part,save_project,export_model,solid
+from compact_crank_ornithopter import build
+from connected_ornithopter import rod,connection_report
+
+def write(folder)
+{
+    folder=Path(folder).resolve()
+    folder.mkdir(parents=True,exist_ok=True)
+    parts=build(True,True)
+    # Remove articulated outer panels and their skins/ribs, preserving the real root drive.
+    parts[:]=[p for p in parts if not any(p.name.startswith(label+'_'+suffix) for label in ['left','right'] for suffix in ['0_','1_','outer_flex'])]
+    outline=np.array([[0,-25],[130,-25],[215,-15],[267,5],[243,15],[267,30],[237,38],[261,55],[223,60],[239,80],[195,77],[207,98],[155,90],[100,100],[40,90],[0,75]],float)
+    # Place the root feather axis inside the chord, with a 10mm fixed root clearance.
+    outline[:,0]=10+outline[:,0]*257/267
+    outline[:,1]-=25
+    for sign,label in [(1,'right'),(-1,'left')]
+    {
+        carrier=next(p for p in parts if p.name==label+'_passive_wing')
+        carrier.joint='Fixed'
+        carrier.stiffness=0
+        carrier.rotation=[0,0,0]
+        trim=next(p for p in parts if p.name==label+'_incidence')
+        trim.limits=[-60,60]
+        trim.rotation=[0,-sign*30,0]
+        housing=next(p for p in parts if p.name==label+'_incidence_servo_housing')
+        housing.rotation=list(trim.rotation)
+        housing.position=[sign*(8+9*math.sin(math.radians(30))),0,-9*math.cos(math.radians(30))]
+        points=outline.copy()
+        points[:,0]*=sign
+        lo,hi=points.min(axis=0),points.max(axis=0)
+        skin=Part(name=label+'_unibody_membrane',shape='Sketch',size=[*(hi-lo).tolist(),.025],sketch=points.tolist(),position=[*((hi+lo)/2).tolist(),0],parent=carrier.name,density=1390,motor='None',collision='Convex hull',color=[.84,.73,.47,1])
+        area=abs(float(np.sum(points[:,0]*np.roll(points[:,1],-1)-np.roll(points[:,0],-1)*points[:,1])))*.5e-6
+        skin.aero={'axis':'Z','area_source':'geometry','area_m2':area,'normal_coefficient':1.4,'upstroke_ratio':1.,'flap_hz':0.,'amplitude_deg':0.,'phase_deg':0.,'waveform':'Sine'}
+        parts.append(skin)
+        # Bonded fixed ribs are part of the same moving wing, never independently articulated.
+        parts.append(rod(label+'_continuous_spar',[0,0,0],[sign*267,-20,0],1.2,carrier.name,1600))
+        for i in [3,5,7,9,11,13,15]
+        {
+            tip=points[i].tolist()+[0]
+            parts.append(rod(label+'_bonded_rib_'+str(i),[0,0,0],tip,1.2,carrier.name,1600))
+        }
+        assert len(solid(skin).solids())==1,'Wing skin must be one continuous solid'
+    }
+    parts[0].scenario.update(wing_construction='One continuous PET skin with bonded fixed carbon spars per wing; root flap and feathering only, no outer-panel joint.',ground_incidence_limit_deg=60,incidence_limit_deg=60,lift_screen_trim_deg=60,flight_validated=False,appearance_pending='Vulture prop styling follows a successful flight gate.')
+    save_project(folder/'CompactCrank.mjcad',parts)
+    xml,m=export_model(folder,parts)
+    source=Path(__file__).resolve().parents[1]/'Compact-Classroom-Ground-600'
+    shutil.copyfile(source/'bench-task.json',folder/'bench-task.json')
+    report=connection_report(parts,root_name='compact_frame')
+    (folder/'connectivity.json').write_text(json.dumps(report,indent=2))
+    evidence={'design':'Continuous-wing ground-start prototype','mass_kg':float(m.body_mass.sum()),'weight_n':float(m.body_mass.sum()*9.81),'flight_validated':False,'physical_flight_validated':False,'wing_structure':'Single continuous 25 micron PET skin and fixed bonded carbon ribs per wing. No outer flex joint or passive root twist. Whole-wing feathering through rated 120 degree root servo travel.','assumptions':['Bond stiffness and strength unmeasured; rigid-wing approximation is not structural validation.','Retains complete battery, motor, gearbox, electronics, housing and hardware mass allowances.','Existing uncalibrated local normal-pressure aerodynamic model; body drag and wake/circulation not resolved.','Manufacturer-backed actuator envelopes retained; 30:1 gearbox efficiency, thermal limits and inertia remain unmeasured.','Expanded feathering must pass ground-clearance and physical torque/speed checks before flight is attempted.'],'previous_design_capacity_report':str(source/'lift-screen.json'),'flight_priority':'Establish flight before vulture body styling; preserve continuous wings.'}
+    (folder/'design-evidence.json').write_text(json.dumps(evidence,indent=2))
+    print(json.dumps({'mass_kg':evidence['mass_kg'],'connectivity':report},indent=2))
+    return parts,m
+}
+if __name__=='__main__'
+{
+    import sys
+    write(sys.argv[1])
+}

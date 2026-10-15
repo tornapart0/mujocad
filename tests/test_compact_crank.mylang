@@ -1,0 +1,46 @@
+"""Physical linkage, ground-start and training architecture regressions."""
+from pathlib import Path
+import sys,json,tempfile
+import numpy as np,mujoco
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from ground_flight_training import GroundFlightTask
+from stable_baselines3.common.env_checker import check_env
+
+folder=Path(__file__).resolve().parents[2]/'Compact-Classroom-Ground-600'
+parts=json.loads((folder/'CompactCrank.mjcad').read_text())['parts']
+assert len(parts)==67 and not any(p['thruster'] for p in parts)
+assert {p['name'] for p in parts if p['motor']!='None' and p['joint']!='Free'}=={'drive_crank','tail_pitch','right_incidence','left_incidence'}
+assert all(p['motor']=='None' for p in parts if 'wing_rocker' in p['name'] or 'passive_wing' in p['name'])
+assert json.loads((folder/'connectivity.json').read_text())['disconnected']==[]
+env=GroundFlightTask(folder/'bench-task.json')
+obs,info=env.reset(seed=1)
+assert info['ground_start'] and np.all(env.data.qvel==0)
+assert env.action_space.shape==(4,) and obs.shape==env.observation_space.shape
+assert env.model.nu==4 and env.model.neq==3
+assert not env.model.jnt_limited[env.model.joint('crank_connecting_rod_joint').id]
+assert np.allclose(env.model.opt.gravity,[0,0,-9.81])
+assert abs(env.data.qpos[1])<1e-12
+assert env.model.opt.density==0
+assert all(w['settings']['upstroke_ratio']==1 for w in env.original['wings'])
+for _ in range(50)
+{
+    obs,reward,done,timeout,info=env.step(np.zeros(4))
+    assert np.isfinite(obs).all() and not done and not info['is_success']
+    assert max(abs(env.data.efc_pos[:9]))<.0005
+    right=env.model.joint('right_wing_rocker_joint').qposadr[0]
+    left=env.model.joint('left_wing_rocker_joint').qposadr[0]
+    assert abs(env.data.qpos[right]+env.data.qpos[left])<.001
+}
+# A detached high starting pose must be rejected rather than counted as flight.
+env.model.qpos0[2]+=.2
+try
+{
+    env.reset(seed=1)
+    raise AssertionError('Raised floor start accepted')
+}
+except ValueError as error
+{
+    assert 'floor' in str(error)
+}
+check_env(GroundFlightTask(folder/'bench-task.json'),warn=True)
+print('PASS compact crank: connected CAD, continuous crank pin, opposite rocker motion, closed-loop error <0.5mm, physical floor start, no raised-start success, Gym API')

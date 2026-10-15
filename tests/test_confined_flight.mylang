@@ -1,0 +1,41 @@
+"""Classroom research goal rejects runways, drifting trajectories and missing control axes."""
+from pathlib import Path
+import sys,json,numpy as np,mujoco
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from ground_flight_training import GroundFlightTask
+from stable_baselines3.common.env_checker import check_env
+folder=Path(__file__).resolve().parents[2]/'Compact-Classroom-Ground-600'
+e=GroundFlightTask(folder/'bench-task.json')
+assert e.confined and e.action_space.shape==(4,)
+assert e.model.nu==4 and e.model.neq==3
+assert e.maximum_ground==.05 and e.maximum_horizontal==.25
+assert np.all(e.data.qvel==0)
+assert e.data.qpos[2]==.06
+parts=json.loads((folder/'CompactCrank.mjcad').read_text())['parts']
+assert not any(p['name'].endswith('_landing_strut') for p in parts)
+assert not e.model.jnt_limited[e.model.joint('crank_connecting_rod_joint').id]
+belly=e.model.geom('chassis_belly_contact_0').id
+assert .004<e.data.geom_xpos[belly,2]-e.model.geom_size[belly,2]<.006
+assert json.loads((folder/'swept-clearance.json').read_text())['passed']
+assert json.loads((folder/'connectivity.json').read_text())['disconnected']==[]
+for name in ['right_ground_pad','left_ground_pad','rear_ground_pad']
+{
+    body=e.model.body(name).id
+    assert e.model.body_jntnum[body]==0
+}
+for _ in range(20)
+{
+    _,_,done,_,info=e.step(np.zeros(4))
+    assert not done and not info['is_success']
+}
+e.data.qpos[e.q]+=.06
+mujoco.mj_forward(e.model,e.data)
+_,_,done,_,info=e.step(np.zeros(4))
+assert done and not info['is_success'] and info['horizontal_drift_m']>.05
+e.reset(seed=22)
+e.data.qpos[e.q]+=.3
+mujoco.mj_forward(e.model,e.data)
+_,_,done,_,info=e.step(np.zeros(4))
+assert done and not info['is_success']
+check_env(GroundFlightTask(folder/'bench-task.json'),warn=True)
+print('PASS confined flight: zero-velocity pad start, four real motor controls, no runway beyond 5cm, 25cm drift bound, finite Gym contract')

@@ -1,0 +1,37 @@
+"""Explicitly massed elastic stroke recovery; spring stiffness/fatigue remain uncalibrated."""
+from pathlib import Path
+import json
+from model import Part,load_project,save_project
+from wing_bench_diagnostics import diagnose
+
+def main()
+{
+    out=Path('outputs/Prototype-ElasticRecovery')
+    out.mkdir(parents=True,exist_ok=True)
+    reports=[]
+    for stiffness in [.02,.08,.2,.4]
+    {
+        parts=load_project('outputs/Prototype-Trim/600/candidate.mjcad')
+        for p in list(parts)
+        {
+            if p.name.endswith('_wing_hinge')
+            {
+                p.stiffness=stiffness
+                p.springref=0
+                parts.append(Part(name=p.name+'_torsion_spring_hardware',parent='fuselage_balsa_keel',shape='Cylinder',size=[10,10,10],position=[p.position[0],p.position[1]+p.pivot[1],p.position[2]],rotation=[90,0,0],mass=.002,motor='None',collision='None',material={'note':'2 g spring/bearing assembly allowance. Cylinder is a mounting-envelope proxy. Elastic stiffness must be measured; no preload energy, no thermal/fatigue or frame-flex validation.'}))
+            }
+        }
+        folder=out/str(stiffness)
+        folder.mkdir(parents=True,exist_ok=True)
+        save_project(folder/'candidate.mjcad',parts)
+        report=diagnose(folder/'candidate.mjcad',folder/'diagnostics')
+        report.update(stiffness_nm_rad=stiffness,folder=str(folder),spring_hardware_unvalidated=True)
+        reports.append(report)
+        (out/'results.json').write_text(json.dumps(reports,indent=2))
+        print(json.dumps({'stiffness_nm_rad':stiffness,'lift_to_weight':report['lift_to_weight'],'collisions':report['collision_steps'],'flap_saturation':report['servos'][0]['torque_saturation_fraction']}),flush=True)
+    }
+}
+if __name__=='__main__'
+{
+    main()
+}
